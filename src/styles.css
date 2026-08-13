@@ -111,11 +111,20 @@ summary:focus-visible {
 }
 
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--text);
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 750;
   letter-spacing: -0.04em;
   text-decoration: none;
+}
+
+.wordmark img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
 }
 
 /* Connection screens */
@@ -1098,7 +1107,7 @@ summary:focus-visible {
 
 .signed-in-nav .wordmark {
   color: var(--text);
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 750;
   letter-spacing: -0.04em;
   text-transform: none;
