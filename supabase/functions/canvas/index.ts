@@ -9,6 +9,13 @@ const allowedOrigins = (Deno.env.get("ALLOWED_ORIGINS") || "http://localhost:517
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const rateLimits: Record<string, { windowSeconds: number; maxRequests: number }> = {
+  dashboard: { windowSeconds: 60, maxRequests: 10 },
+  connect: { windowSeconds: 3600, maxRequests: 5 },
+  disconnect: { windowSeconds: 3600, maxRequests: 5 },
+  delete_account: { windowSeconds: 3600, maxRequests: 3 },
+};
+
 function originAllowed(request: Request) {
   const origin = request.headers.get("Origin");
   return !origin || allowedOrigins.includes(origin);
@@ -296,6 +303,27 @@ Deno.serve(async (request) => {
 
     if (!user) return respond({ error: "Sign in required." }, 401);
 
+    const rateLimit = rateLimits[body.action];
+    if (!rateLimit) return respond({ error: "Unknown action." }, 400);
+
+    stage = "checking rate limit";
+    const { data: requestAllowed, error: rateLimitError } = await admin.rpc(
+      "check_edge_rate_limit",
+      {
+        p_user_id: user.id,
+        p_action: body.action,
+        p_window_seconds: rateLimit.windowSeconds,
+        p_max_requests: rateLimit.maxRequests,
+      },
+    );
+    if (rateLimitError) throw rateLimitError;
+    if (!requestAllowed) {
+      return respond(
+        { error: "Too many requests. Please wait and try again." },
+        429,
+      );
+    }
+
     if (body.action === "connect") {
       const canvasUrl = normalizeCanvasUrl(body.canvasUrl || "");
       const token = String(body.token || "").trim();
@@ -351,8 +379,6 @@ Deno.serve(async (request) => {
       );
       return respond(await dashboard(connection.canvas_url, token));
     }
-
-    return respond({ error: "Unknown action." }, 400);
   } catch (error) {
     const cause = errorMessage(error);
     const message = cause === "Unexpected server error."
