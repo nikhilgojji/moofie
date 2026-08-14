@@ -1,13 +1,34 @@
 import { supabase } from "./supabase";
 
+const REQUEST_TIMEOUT_MS = 45_000;
+
+// Prevent a suspended browser tab or stalled network request from leaving the
+// interface in its loading state forever.
+async function withTimeout(request) {
+  let timeoutId;
+  try {
+    return await Promise.race([
+      request,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error("The request took too long. Please try again.")),
+          REQUEST_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // Send one authenticated command to the server. Canvas tokens never need to be
 // handled directly by the browser after the initial connection request.
 async function callCanvasFunction(action, payload = {}) {
   if (!supabase) throw new Error("Supabase is not configured.");
 
-  const { data, error } = await supabase.functions.invoke("canvas", {
-    body: { action, ...payload },
-  });
+  const { data, error } = await withTimeout(
+    supabase.functions.invoke("canvas", { body: { action, ...payload } }),
+  );
 
   if (error) {
     let message = error.message;
