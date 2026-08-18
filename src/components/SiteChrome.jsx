@@ -66,7 +66,7 @@ export function PublicNav({ label = "Public page navigation" }) {
     <header className="access-header public-header">
       <a className="wordmark" href="/">
         <span>Moofie</span>
-        <img src="/cow.png" alt="" aria-hidden="true" />
+        <img src="/bobcat.png" alt="" aria-hidden="true" />
       </a>
       <nav className="access-nav" aria-label={label}>
         <ThemeToggle />
@@ -112,7 +112,7 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
     <header className="topbar signed-in-nav">
       <a className="wordmark" href="/">
         <span>Moofie</span>
-        <img src="/cow.png" alt="" aria-hidden="true" />
+        <img src="/bobcat.png" alt="" aria-hidden="true" />
       </a>
       <div className="signed-in-nav-actions">
         <ThemeToggle />
