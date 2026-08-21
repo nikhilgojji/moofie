@@ -10,6 +10,7 @@ import { isSupabaseConfigured, supabase } from "./supabase";
 import {
   clearDashboardCache,
   readDashboardCache,
+  sanitizeDashboard,
   writeDashboardCache,
 } from "./utils/dashboardCache";
 import {
@@ -1366,7 +1367,9 @@ function GradebookApp() {
 
     loadCanvasDashboard()
       .then((dashboard) => {
-        const nextData = dashboard?.connected === false ? null : dashboard;
+        const nextData = sanitizeDashboard(
+          dashboard?.connected === false ? null : dashboard,
+        );
         setData(nextData);
         writeDashboardCache(session.user.id, nextData);
       })
@@ -1447,7 +1450,7 @@ function GradebookApp() {
   if (!data) {
     return withAccountDialog(
       <ConnectScreen
-        onConnect={setData}
+        onConnect={(dashboard) => setData(sanitizeDashboard(dashboard))}
         onSignOut={signOut}
         onDeleteAccount={deleteAccount}
       />,

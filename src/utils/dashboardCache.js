@@ -2,6 +2,22 @@
 const DASHBOARD_CACHE_KEY = "moofie-dashboard-cache";
 const DASHBOARD_CACHE_TTL_MS = 15 * 60 * 1000;
 
+// Canvas exposes placement and training shells as courses even though they are
+// not part of a student's real schedule.
+export function sanitizeDashboard(data) {
+  if (!data || !Array.isArray(data.courses)) return data;
+
+  return {
+    ...data,
+    courses: data.courses.filter(
+      (course) =>
+        !/^(placement exam:|shape student training\b)/i.test(
+          String(course?.name ?? "").trim(),
+        ),
+    ),
+  };
+}
+
 // Return cached dashboard data only when it belongs to this user and is fresh.
 export function readDashboardCache(userId) {
   try {
@@ -13,7 +29,7 @@ export function readDashboardCache(userId) {
     if (!isFresh) localStorage.removeItem(DASHBOARD_CACHE_KEY);
 
     return cached?.userId === userId && isFresh
-      ? { found: true, data: cached.data ?? null }
+      ? { found: true, data: sanitizeDashboard(cached.data ?? null) }
       : { found: false, data: null };
   } catch {
     return { found: false, data: null };
@@ -25,7 +41,11 @@ export function writeDashboardCache(userId, data) {
   try {
     localStorage.setItem(
       DASHBOARD_CACHE_KEY,
-      JSON.stringify({ userId, data, cachedAt: Date.now() }),
+      JSON.stringify({
+        userId,
+        data: sanitizeDashboard(data),
+        cachedAt: Date.now(),
+      }),
     );
   } catch {
     // The live dashboard still works when browser storage is unavailable.

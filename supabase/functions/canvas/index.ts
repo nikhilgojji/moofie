@@ -209,7 +209,10 @@ async function dashboard(canvasUrl: string, token: string) {
   const usable = rawCourses.filter(
     (course: any) =>
       course.workflow_state === "available" &&
-      !course.access_restricted_by_date,
+      !course.access_restricted_by_date &&
+      !/^(placement exam:|shape student training\b)/i.test(
+        String(course.name ?? "").trim(),
+      ),
   );
 
   const courses = await Promise.all(
