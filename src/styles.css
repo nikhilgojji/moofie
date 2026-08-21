@@ -121,12 +121,6 @@ summary:focus-visible {
   text-decoration: none;
 }
 
-.wordmark img {
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-}
-
 /* Connection screens */
 
 .access-page {
