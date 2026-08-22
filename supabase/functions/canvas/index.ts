@@ -185,6 +185,7 @@ function mapAssignment(
     updatedAt: assignment.updated_at ?? null,
     points: Number(assignment.points_possible ?? 0),
     earned: submission?.score ?? null,
+    gradedAt: submission?.graded_at ?? null,
     submitted: Boolean(submission?.submitted_at),
     missing: Boolean(submission?.missing),
     late: Boolean(submission?.late),

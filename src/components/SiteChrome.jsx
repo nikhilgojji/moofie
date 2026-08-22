@@ -1,9 +1,26 @@
 // Shared page chrome lives here so every screen uses the same navigation,
 // theme behavior, footer links, and account controls.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // Remember the explicit choice under one stable browser-storage key.
 const THEME_STORAGE_KEY = "moofie-theme";
+
+function formatCourseName(name) {
+  return String(name ?? "")
+    .trim()
+    .replace(/^[A-Z]\d{2}-/i, "")
+    .replace(/\s+\d{2}$/, "");
+}
+
+function formatNotificationTime(value) {
+  if (!value) return "Recently updated";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
 
 // Prefer a saved choice, then fall back to the operating-system color scheme.
 function getInitialTheme() {
@@ -89,6 +106,43 @@ export function SiteFooter() {
 // Signed-in header combines project navigation with account-management actions.
 export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) {
   const profileMenuRef = useRef(null);
+  const notificationsMenuRef = useRef(null);
+  const notificationsKey = `moofie-grade-notifications-seen:${user?.id}`;
+  const gradeNotifications = useMemo(
+    () =>
+      data.courses
+        .flatMap((course) =>
+          (course.assignments || [])
+            .filter(
+              (assignment) =>
+                assignment.earned !== null && assignment.earned !== undefined,
+            )
+            .map((assignment) => ({
+              id: `${course.id}-${assignment.id}`,
+              assignment,
+              courseName: formatCourseName(course.name),
+              updatedAt: assignment.gradedAt || assignment.updatedAt,
+            })),
+        )
+        .sort(
+          (left, right) =>
+            new Date(right.updatedAt || 0) - new Date(left.updatedAt || 0),
+        )
+        .slice(0, 20),
+    [data.courses],
+  );
+  const [notificationsSeenAt, setNotificationsSeenAt] = useState(() => {
+    try {
+      return Number(localStorage.getItem(notificationsKey)) || Date.now();
+    } catch {
+      return Date.now();
+    }
+  });
+  const unreadCount = gradeNotifications.filter(
+    (notification) =>
+      notification.updatedAt &&
+      new Date(notification.updatedAt).getTime() > notificationsSeenAt,
+  ).length;
   const accountName =
     data.profile.short_name ||
     data.profile.name ||
@@ -98,14 +152,38 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
 
   // A native details element supplies keyboard behavior; this effect adds outside-click closing.
   useEffect(() => {
-    function closeProfileMenu(event) {
-      const menu = profileMenuRef.current;
-      if (menu?.open && !menu.contains(event.target)) menu.removeAttribute("open");
+    try {
+      if (!localStorage.getItem(notificationsKey)) {
+        localStorage.setItem(notificationsKey, String(notificationsSeenAt));
+      }
+    } catch {
+      // Notifications still work for this page view without persistence.
+    }
+  }, [notificationsKey, notificationsSeenAt]);
+
+  useEffect(() => {
+    function closeMenus(event) {
+      [profileMenuRef.current, notificationsMenuRef.current].forEach((menu) => {
+        if (menu?.open && !menu.contains(event.target)) {
+          menu.removeAttribute("open");
+        }
+      });
     }
 
-    document.addEventListener("pointerdown", closeProfileMenu);
-    return () => document.removeEventListener("pointerdown", closeProfileMenu);
+    document.addEventListener("pointerdown", closeMenus);
+    return () => document.removeEventListener("pointerdown", closeMenus);
   }, []);
+
+  function markNotificationsSeen(event) {
+    if (!event.currentTarget.open) return;
+    const seenAt = Date.now();
+    setNotificationsSeenAt(seenAt);
+    try {
+      localStorage.setItem(notificationsKey, String(seenAt));
+    } catch {
+      // The unread state remains correct until this page is closed.
+    }
+  }
 
   return (
     <header className="topbar signed-in-nav">
@@ -113,6 +191,61 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
         <span>Moofie</span>
       </a>
       <div className="signed-in-nav-actions">
+        <details
+          className="notifications-menu"
+          ref={notificationsMenuRef}
+          onToggle={markNotificationsSeen}
+        >
+          <summary aria-label="Open grade notifications" title="Notifications">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+            </svg>
+            {unreadCount > 0 && (
+              <span className="notification-count">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </summary>
+          <div className="notifications-panel">
+            <div className="notifications-heading">
+              <strong>Grade updates</strong>
+              <span>Latest posted and changed grades</span>
+            </div>
+            {gradeNotifications.length === 0 ? (
+              <p className="notifications-empty">No grade updates yet.</p>
+            ) : (
+              <div className="notifications-list">
+                {gradeNotifications.map((notification) => {
+                  const content = (
+                    <>
+                      <strong>{notification.assignment.title}</strong>
+                      <span>
+                        {notification.courseName} · {notification.assignment.earned}
+                        {notification.assignment.points
+                          ? ` / ${notification.assignment.points} pts`
+                          : " pts"}
+                      </span>
+                      <time>{formatNotificationTime(notification.updatedAt)}</time>
+                    </>
+                  );
+
+                  return notification.assignment.htmlUrl ? (
+                    <a
+                      href={notification.assignment.htmlUrl}
+                      key={notification.id}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {content}
+                    </a>
+                  ) : (
+                    <div key={notification.id}>{content}</div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </details>
         <ThemeToggle />
         <a href="/about">About</a>
         <details className="profile-menu" ref={profileMenuRef}>

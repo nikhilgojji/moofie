@@ -1131,7 +1131,7 @@ summary:focus-visible {
 .signed-in-nav-actions {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 12px;
 }
 
 .signed-in-nav-actions > a {
@@ -1147,11 +1147,14 @@ summary:focus-visible {
   color: var(--accent);
 }
 
-.profile-menu {
+.profile-menu,
+.notifications-menu {
   position: relative;
 }
 
-.profile-menu summary {
+.profile-menu summary,
+.notifications-menu summary {
+  position: relative;
   display: grid;
   width: 38px;
   height: 38px;
@@ -1163,17 +1166,21 @@ summary:focus-visible {
   list-style: none;
 }
 
-.profile-menu summary::-webkit-details-marker {
+.profile-menu summary::-webkit-details-marker,
+.notifications-menu summary::-webkit-details-marker {
   display: none;
 }
 
 .profile-menu summary:hover,
-.profile-menu[open] summary {
+.profile-menu[open] summary,
+.notifications-menu summary:hover,
+.notifications-menu[open] summary {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.profile-menu summary svg {
+.profile-menu summary svg,
+.notifications-menu summary svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -1181,6 +1188,107 @@ summary:focus-visible {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+}
+
+.notifications-menu summary {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 0;
+}
+
+.notifications-menu summary:hover,
+.notifications-menu[open] summary {
+  border-color: transparent;
+}
+
+.notification-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  place-items: center;
+  border: 2px solid var(--bg);
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.notifications-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(520px, calc(100vh - 100px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.notifications-heading {
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.notifications-heading strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.notifications-heading span,
+.notifications-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notifications-empty {
+  margin: 0;
+  padding: 22px 18px;
+}
+
+.notifications-list {
+  display: grid;
+}
+
+.notifications-list > a,
+.notifications-list > div {
+  display: grid;
+  gap: 4px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.notifications-list > :last-child {
+  border-bottom: 0;
+}
+
+.notifications-list > a:hover {
+  background: var(--accent-soft);
+}
+
+.notifications-list strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notifications-list span,
+.notifications-list time {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .profile-menu-panel {
@@ -2801,6 +2909,7 @@ summary:focus-visible {
 :root[data-theme="light"] .assignment-group,
 :root[data-theme="light"] .about-card,
 :root[data-theme="light"] .profile-menu-panel,
+:root[data-theme="light"] .notifications-panel,
 :root[data-theme="light"] .action-dialog {
   border-color: var(--line);
   background: var(--panel);
