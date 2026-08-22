@@ -293,11 +293,6 @@ function AssignmentPreview({ type, items }) {
 
       {items.length === 0 ? (
         <div className="assignment-preview-empty">
-          {type === "upcoming" && (
-            <span className="empty-state-icon" aria-hidden="true">
-              ✓
-            </span>
-          )}
           <div>
             <strong>
               {type === "upcoming" ? "Your schedule is clear" : "All caught up"}
@@ -398,7 +393,6 @@ function GradesHome({
 
         {data.courses.length === 0 ? (
           <div className="empty-card">
-            <span className="empty-state-icon" aria-hidden="true">✓</span>
             <div>
               <h2>No active courses</h2>
               <p>Your active Canvas courses will appear here when available.</p>
