@@ -589,7 +589,7 @@ function AboutEntryPage() {
           <time className="journal-date" dateTime="2026-08-12">August 12, 2026</time>
           <h1>Why I Built Moofie?</h1>
           <p><strong>I feel like most of my time has gone into calculating my grades than actually earning them.</strong></p>
-          <p>I had a certain routine I created in my first year at the university. Open up CatCourses. Click on a course. Scroll through the gradebook. Scroll through the gradebook. Forget what I was looking for. Scroll back up. Locate the assignment I am looking for. Open a different course. Repeat the whole process all over again.</p>
+          <p>I had a certain routine I created in my first year at the university. Open up CatCourses. Click on a course. Scroll through the gradebook. Forget what I was looking for. Scroll back up. Locate the assignment I am looking for. Open a different course. Repeat the whole process all over again.</p>
           <p>Finding one specific assignment in the gradebook felt like digging through a junk yard and hoping I recognized what I came for.</p>
           <p>At some point, I would remember about the calendar.</p>
           <p>Then I'd open that too.</p>
@@ -597,7 +597,7 @@ function AboutEntryPage() {
           <p>CatCourses was never particularly bad at any of these things. <strong>The only problem was that the information I cared about existed everywhere except where I wanted it.</strong> My grades lived in one place, upcoming assignments in another, missing work somewhere in a list I'd inevitably scroll past, and the syllabus held the secret formula explaining what any of those numbers actually meant.</p>
           <p>Most of the time it was irritating. During the finals week it turned into a scientific experiment.</p>
 
-          <p> I'd search "grade calculator" on Google, select the first page I believed to be trustworthy, and keep it open next to the syllabus for the course I was taking. Exams: 40%. Homework: 20%. Projects: 25%. Final: 15%. Then I'd go back to CatCourses, and look for my scores in each of those categories, transfer those numbers over, and finally add a hypothetical final exam score.</p>
+          <p>I'd search "grade calculator" on Google, select the first page I believed to be trustworthy, and keep it open next to the syllabus for the course I was taking. Exams: 40%. Homework: 20%. Projects: 25%. Final: 15%. Then I'd go back to CatCourses, and look for my scores in each of those categories, transfer those numbers over, and finally add a hypothetical final exam score.</p>
           <div className="journal-questions">
             <p>What do I need for an A?</p>
             <p>Change it to another number.</p>
@@ -611,7 +611,7 @@ function AboutEntryPage() {
           <p><strong>I didn't want more information but wanted the information I already had to make sense.</strong></p>
 
           <p>I started asking friends how they kept track of everything. Their systems weren't much better. Some bounced between CatCourses and the calendar. Some checked individual classes every day. Some used Coursicle to catch assignments they'd missed elsewhere. Others had spreadsheets, calculators, or some combination of all of them.</p>
-          <p>Apparently we'd all independently invented different solutions to the same inconvenience. My friends started recognizing the same problems, and the project stopped feeling quite as personal.I tried out various extensions as well.</p>
+          <p>Apparently we'd all independently invented different solutions to the same inconvenience. My friends started recognizing the same problems, and the project stopped feeling quite as personal. I tried out various extensions as well.</p>
           <p>Some came very close but they still weren't good enough and didn't solve the problems we had. One made grades nicer to see but didn't have the ability to add assignments. Another would have a nice dashboard for assignments, but made the grades dashboard horrendous. I still ended up switching between my tabs, syllabi, and calculators.</p>
           <p><strong>At some point, maintaining my system for keeping track of school started feeling like another class.</strong></p>
 
@@ -641,7 +641,7 @@ function AboutEntryPage() {
 
           <p>The kind that starts when something ordinary bothers you just enough that you start becoming aware and noticing it. You notice the extra clicks. You observe the repeated searches. You become aware of the small inconveniences that nobody seems to think about that has become normal.</p>
           <p>Instead of placing that in the list of usual things, you start to use your editor.</p>
-          <p><strong>Sometimes, people don’t realize certain problems they face until someone points them out. </strong></p>
+          <p><strong>Sometimes, people don’t realize certain problems they face until someone points them out.</strong></p>
           <a className="journal-try-link" href="/">Try Moofie</a>
         </article>
       </section>
