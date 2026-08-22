@@ -1,6 +1,11 @@
 // Shared page chrome lives here so every screen uses the same navigation,
 // theme behavior, footer links, and account controls.
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushNotificationStatus,
+} from "../pushNotifications";
 
 // Remember the explicit choice under one stable browser-storage key.
 const THEME_STORAGE_KEY = "moofie-theme";
@@ -138,6 +143,9 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
       return Date.now();
     }
   });
+  const [pushStatus, setPushStatus] = useState("checking");
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState("");
   const unreadCount = gradeNotifications.filter(
     (notification) =>
       notification.updatedAt &&
@@ -174,6 +182,20 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
     return () => document.removeEventListener("pointerdown", closeMenus);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    getPushNotificationStatus()
+      .then((status) => {
+        if (active) setPushStatus(status);
+      })
+      .catch(() => {
+        if (active) setPushStatus("available");
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
   function markNotificationsSeen(event) {
     if (!event.currentTarget.open) return;
     const seenAt = Date.now();
@@ -182,6 +204,23 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
       localStorage.setItem(notificationsKey, String(seenAt));
     } catch {
       // The unread state remains correct until this page is closed.
+    }
+  }
+
+  async function togglePushNotifications() {
+    setPushBusy(true);
+    setPushError("");
+    try {
+      const status =
+        pushStatus === "enabled"
+          ? await disablePushNotifications()
+          : await enablePushNotifications();
+      setPushStatus(status);
+    } catch (error) {
+      setPushError(error.message || "Moofie could not update phone alerts.");
+      setPushStatus(await getPushNotificationStatus().catch(() => "available"));
+    } finally {
+      setPushBusy(false);
     }
   }
 
@@ -210,6 +249,34 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
             <div className="notifications-heading">
               <strong>Grade updates</strong>
               <span>Latest posted and changed grades</span>
+            </div>
+            <div className="push-notification-setting">
+              <div>
+                <strong>Phone alerts</strong>
+                <span>
+                  {pushStatus === "enabled"
+                    ? "On for this device"
+                    : pushStatus === "denied"
+                      ? "Blocked in device settings"
+                      : pushStatus === "unsupported"
+                        ? "On iPhone, add Moofie to your Home Screen first"
+                        : "Get new and updated grades on your lock screen"}
+                </span>
+              </div>
+              {(pushStatus === "enabled" || pushStatus === "available") && (
+                <button
+                  type="button"
+                  disabled={pushBusy}
+                  onClick={togglePushNotifications}
+                >
+                  {pushBusy
+                    ? "Working..."
+                    : pushStatus === "enabled"
+                      ? "Turn off"
+                      : "Turn on"}
+                </button>
+              )}
+              {pushError && <p role="alert">{pushError}</p>}
             </div>
             {gradeNotifications.length === 0 ? (
               <p className="notifications-empty">No grade updates yet.</p>

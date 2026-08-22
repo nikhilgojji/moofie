@@ -1260,6 +1260,61 @@ summary:focus-visible {
   padding: 22px 18px;
 }
 
+.push-notification-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 14px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.push-notification-setting > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.push-notification-setting strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.push-notification-setting span,
+.push-notification-setting p {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.push-notification-setting button {
+  min-width: 66px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.push-notification-setting button:hover:not(:disabled) {
+  border-color: var(--text);
+}
+
+.push-notification-setting button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.push-notification-setting p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--danger);
+}
+
 .notifications-list {
   display: grid;
 }
@@ -2502,6 +2557,10 @@ summary:focus-visible {
 
   .notifications-heading {
     padding: 14px 16px;
+  }
+
+  .push-notification-setting {
+    padding: 13px 16px;
   }
 
   .notifications-list > a,

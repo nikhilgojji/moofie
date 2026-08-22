@@ -14,6 +14,9 @@ const rateLimits: Record<string, { windowSeconds: number; maxRequests: number }>
   connect: { windowSeconds: 3600, maxRequests: 5 },
   disconnect: { windowSeconds: 3600, maxRequests: 5 },
   delete_account: { windowSeconds: 3600, maxRequests: 3 },
+  push_config: { windowSeconds: 60, maxRequests: 10 },
+  subscribe_push: { windowSeconds: 3600, maxRequests: 10 },
+  unsubscribe_push: { windowSeconds: 3600, maxRequests: 10 },
 };
 
 function originAllowed(request: Request) {
@@ -355,6 +358,54 @@ Deno.serve(async (request) => {
         .eq("user_id", user.id);
       if (error) throw error;
       return respond({ disconnected: true });
+    }
+
+    if (body.action === "push_config") {
+      return respond({ publicKey: requiredEnv("VAPID_PUBLIC_KEY") });
+    }
+
+    if (body.action === "subscribe_push") {
+      const subscription = body.subscription;
+      const endpoint = String(subscription?.endpoint || "").trim();
+      const p256dh = String(subscription?.keys?.p256dh || "").trim();
+      const auth = String(subscription?.keys?.auth || "").trim();
+      if (!endpoint || !p256dh || !auth) {
+        return respond({ error: "Invalid push subscription." }, 400);
+      }
+      const endpointUrl = new URL(endpoint);
+      if (endpointUrl.protocol !== "https:" || endpoint.length > 4096) {
+        return respond({ error: "Invalid push endpoint." }, 400);
+      }
+      if (p256dh.length > 512 || auth.length > 512) {
+        return respond({ error: "Invalid push subscription keys." }, 400);
+      }
+
+      const { error } = await admin.from("push_subscriptions").upsert(
+        {
+          user_id: user.id,
+          endpoint,
+          p256dh,
+          auth,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "endpoint" },
+      );
+      if (error) throw error;
+      return respond({ subscribed: true });
+    }
+
+    if (body.action === "unsubscribe_push") {
+      const endpoint = String(body.endpoint || "").trim();
+      if (!endpoint || endpoint.length > 4096) {
+        return respond({ error: "Invalid push endpoint." }, 400);
+      }
+      const { error } = await admin
+        .from("push_subscriptions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("endpoint", endpoint);
+      if (error) throw error;
+      return respond({ unsubscribed: true });
     }
 
     if (body.action === "delete_account") {

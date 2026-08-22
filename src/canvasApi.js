@@ -64,3 +64,18 @@ export function disconnectCanvasAccount() {
 export function deleteMoofieAccount() {
   return callCanvasFunction("delete_account");
 }
+
+// Read the public VAPID key used by this Moofie deployment.
+export function getPushConfig() {
+  return callCanvasFunction("push_config");
+}
+
+// Associate this browser's Web Push subscription with the signed-in user.
+export function registerPushSubscription(subscription) {
+  return callCanvasFunction("subscribe_push", { subscription });
+}
+
+// Stop sending grade alerts to one browser or installed app.
+export function removePushSubscription(endpoint) {
+  return callCanvasFunction("unsubscribe_push", { endpoint });
+}
