@@ -38,7 +38,7 @@
 }
 
 :root[data-theme="light"] {
-  color: #0b0b0f;
+  color: #25252a;
   background: #f3f3f7;
   --bg: #f3f3f7;
   --panel: #ffffff;
@@ -46,17 +46,17 @@
   --panel-soft: #ffffff;
   --line: #c8c9d3;
   --line-soft: #d2d3dc;
-  --text: #0b0b0f;
-  --muted: #6c6d78;
-  --accent: #0b0b0f;
-  --accent-bright: #303038;
-  --accent-soft: rgba(11, 11, 15, 0.06);
-  --warning: #0b0b0f;
-  --warning-soft: rgba(11, 11, 15, 0.05);
+  --text: #25252a;
+  --muted: #72727c;
+  --accent: #25252a;
+  --accent-bright: #3d3d44;
+  --accent-soft: rgba(37, 37, 42, 0.06);
+  --warning: #25252a;
+  --warning-soft: rgba(37, 37, 42, 0.05);
   --danger: #d83a50;
   --danger-soft: rgba(216, 58, 80, 0.09);
   --field-bg: #ffffff;
-  --button-contrast-bg: #0b0b0f;
+  --button-contrast-bg: #25252a;
   --button-contrast-text: #ffffff;
 }
 
@@ -1507,7 +1507,7 @@ summary:focus-visible {
   text-transform: uppercase;
 }
 
-.courses-heading span:last-child {
+.courses-count {
   margin-right: 8px;
   color: var(--muted);
   font-size: 12px;
@@ -1515,8 +1515,19 @@ summary:focus-visible {
   text-transform: none;
 }
 
-.courses-heading span:first-child {
+.courses-heading-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: 8px;
+}
+
+.courses-heading-label span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .grade-list {
@@ -2660,6 +2671,11 @@ summary:focus-visible {
   color: var(--text);
 }
 
+:root[data-theme="light"] .grades-heading h1,
+:root[data-theme="light"] .course-header h1 {
+  font-weight: 650;
+}
+
 /* Shared shape system keeps related controls visually consistent. */
 
 .summary-card,
@@ -2876,7 +2892,7 @@ summary:focus-visible {
 }
 
 :root[data-theme="light"] .what-if-notice {
-  border-color: rgba(11, 11, 15, 0.2);
+  border-color: rgba(37, 37, 42, 0.2);
   background: var(--accent-soft);
   color: var(--accent-bright);
 }

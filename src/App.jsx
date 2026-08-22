@@ -27,6 +27,23 @@ import {
   groupPointTotals,
 } from "./utils/gradebook";
 
+// Canvas wraps the useful course name in term and section metadata, such as
+// "F26-CSE 030 01". Keep that metadata out of the visible course label.
+function formatCourseDisplayName(name) {
+  return String(name ?? "")
+    .trim()
+    .replace(/^[A-Z]\d{2}-/i, "")
+    .replace(/\s+\d{2}$/, "");
+}
+
+function getCourseTermLabel(name) {
+  const match = String(name ?? "").trim().match(/^([FSUW])(\d{2})-/i);
+  if (!match) return null;
+
+  const terms = { F: "Fall", S: "Spring", U: "Summer", W: "Winter" };
+  return `${terms[match[1].toUpperCase()]} 20${match[2]}`;
+}
+
 // Authentication screen: starts Google OAuth and explains required consent.
 function AuthScreen() {
   const [loading, setLoading] = useState(false);
@@ -309,7 +326,7 @@ function AssignmentPreview({ type, items }) {
           {items.map(({ course, assignment }) => {
             const content = (
               <>
-                <span>{course.name}</span>
+                <span>{formatCourseDisplayName(course.name)}</span>
                 <strong>{assignment.title}</strong>
                 <small>
                   {type === "upcoming"
@@ -354,6 +371,9 @@ function GradesHome({
   deleteAccount,
 }) {
   const [activeFilter, setActiveFilter] = useState(null);
+  const termLabel = data.courses
+    .map((course) => getCourseTermLabel(course.name))
+    .find(Boolean);
 
   const previewItems = activeFilter
     ? getAssignmentList(data.courses, activeFilter)
@@ -401,8 +421,11 @@ function GradesHome({
         ) : (
           <section className="courses-section">
             <div className="courses-heading">
-              <span>Courses</span>
-              <span>{data.courses.length} courses</span>
+              <div className="courses-heading-label">
+                <span>Courses</span>
+                {termLabel && <span>· {termLabel}</span>}
+              </div>
+              <span className="courses-count">{data.courses.length} courses</span>
             </div>
 
             <div className="grade-list">
@@ -414,15 +437,15 @@ function GradesHome({
                     className="grade-card"
                     key={course.id}
                     onClick={() => openCourse(course.id)}
-                    aria-label={`Open ${course.name}`}
-                    title={`Open ${course.name}`}
+                    aria-label={`Open ${formatCourseDisplayName(course.name)}`}
+                    title={`Open ${formatCourseDisplayName(course.name)}`}
                   >
                     <div className="course-copy">
                       <span className="course-update">
                         {formatCourseUpdatedAt(course)}
                       </span>
 
-                      <h2>{course.name}</h2>
+                      <h2>{formatCourseDisplayName(course.name)}</h2>
 
                       <p className="course-meta">
                         {counts.total}{" "}
@@ -911,8 +934,10 @@ function CourseDetails({
       <section className="details-content">
         <header className="course-header">
           <div>
-            <p>{course.code}</p>
-            <h1>{course.name}</h1>
+            {getCourseTermLabel(course.name) && (
+              <p>{getCourseTermLabel(course.name)}</p>
+            )}
+            <h1>{formatCourseDisplayName(course.name)}</h1>
           </div>
 
           <div className="large-grade">
