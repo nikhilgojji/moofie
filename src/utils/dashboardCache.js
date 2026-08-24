@@ -9,12 +9,26 @@ export function sanitizeDashboard(data) {
 
   return {
     ...data,
-    courses: data.courses.filter(
-      (course) =>
+    courses: data.courses
+      .filter(
+        (course) =>
         !/^(placement exam:|shape student training\b)/i.test(
           String(course?.name ?? "").trim(),
         ),
-    ),
+      )
+      .map((course) => {
+        const hasGradedAssignment = (course.assignments || []).some(
+          (assignment) =>
+            assignment.earned !== null &&
+            assignment.earned !== undefined &&
+            !assignment.omitted &&
+            !assignment.excused,
+        );
+
+        return hasGradedAssignment
+          ? course
+          : { ...course, grade: null, letter: null };
+      }),
   };
 }
 

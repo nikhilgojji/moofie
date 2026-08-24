@@ -250,7 +250,16 @@ async function dashboard(canvasUrl: string, token: string) {
         enrollment?.computed_current_score ??
         enrollment?.computed_final_score ??
         null;
-      const grade = rawGrade == null ? null : Number(rawGrade);
+      const assignments = groups.flatMap((group: any) => group.assignments);
+      const hasGradedAssignment = assignments.some(
+        (assignment: any) =>
+          assignment.earned !== null &&
+          assignment.earned !== undefined &&
+          !assignment.omitted &&
+          !assignment.excused,
+      );
+      const grade =
+        hasGradedAssignment && rawGrade != null ? Number(rawGrade) : null;
 
       return {
         id: course.id,
@@ -262,13 +271,14 @@ async function dashboard(canvasUrl: string, token: string) {
             ?.map((teacher: any) => teacher.display_name)
             .join(", ") || "Instructor not listed",
         grade,
-        letter:
-          enrollment?.computed_current_grade ||
-          enrollment?.computed_final_grade ||
-          gradeLetter(grade),
+        letter: hasGradedAssignment
+          ? enrollment?.computed_current_grade ||
+            enrollment?.computed_final_grade ||
+            gradeLetter(grade)
+          : null,
         weighted: Boolean(course.apply_assignment_group_weights),
         groups,
-        assignments: groups.flatMap((group: any) => group.assignments),
+        assignments,
       };
     }),
   );
