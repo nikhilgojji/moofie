@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   connectCanvasAccount,
   deleteMoofieAccount,
@@ -811,6 +811,11 @@ function CourseDetails({
     title: "",
     points: "",
   });
+  useEffect(() => {
+    setValues(initialValues);
+    setManualAssignments({});
+    setAddingGroupId(null);
+  }, [initialValues]);
 
   const groups = useMemo(
     () =>
@@ -833,8 +838,8 @@ function CourseDetails({
     return {
       group,
       assignments,
-      grade: calculateGroupGrade(assignments, values),
-      totals: groupPointTotals(assignments, values),
+      grade: calculateGroupGrade(assignments, values, group.rules),
+      totals: groupPointTotals(assignments, values, group.rules),
     };
   });
   const coursePointTotals = groupSummaries.reduce(
@@ -1023,6 +1028,18 @@ function CourseDetails({
                     <h3>{group.name}</h3>
                     {course.weighted && (
                       <span>{group.weight}% of grade</span>
+                    )}
+                    {(group.rules?.dropLowest > 0 ||
+                      group.rules?.dropHighest > 0) && (
+                      <span>
+                        {group.rules.dropLowest > 0 &&
+                          `Drops ${group.rules.dropLowest} lowest`}
+                        {group.rules.dropLowest > 0 &&
+                          group.rules.dropHighest > 0 &&
+                          " · "}
+                        {group.rules.dropHighest > 0 &&
+                          `Drops ${group.rules.dropHighest} highest`}
+                      </span>
                     )}
                   </div>
                   <button
@@ -1316,6 +1333,9 @@ function GradebookApp() {
   const [accountAction, setAccountAction] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const refreshRequestRef = useRef(null);
+  const pullStartRef = useRef(null);
+  const pullDistanceRef = useRef(0);
 
   useEffect(() => {
     function returnToGrades() {
@@ -1330,6 +1350,79 @@ function GradebookApp() {
     window.history.pushState({ moofieCourse: courseId }, "");
     setSelectedCourseId(courseId);
   }
+
+  const refreshDashboard = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId || refreshRequestRef.current) return false;
+
+    const request = loadCanvasDashboard();
+    refreshRequestRef.current = request;
+
+    try {
+      const dashboard = await request;
+      const nextData = sanitizeDashboard(
+        dashboard?.connected === false ? null : dashboard,
+      );
+      setData(nextData);
+      writeDashboardCache(userId, nextData);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshRequestRef.current = null;
+      pullDistanceRef.current = 0;
+    }
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session || !data) return;
+
+    function atTop() {
+      return window.scrollY <= 0 && document.documentElement.scrollTop <= 0;
+    }
+
+    function startPull(event) {
+      if (
+        event.touches.length !== 1 ||
+        !atTop() ||
+        refreshRequestRef.current
+      ) return;
+      pullStartRef.current = event.touches[0].clientY;
+    }
+
+    function movePull(event) {
+      if (pullStartRef.current === null || event.touches.length !== 1) return;
+      const movement = event.touches[0].clientY - pullStartRef.current;
+      if (movement <= 0) {
+        pullDistanceRef.current = 0;
+        return;
+      }
+      if (!atTop()) return;
+      event.preventDefault();
+      const distance = Math.min(movement * 0.45, 88);
+      pullDistanceRef.current = distance;
+    }
+
+    function finishPull() {
+      const shouldRefresh = pullDistanceRef.current >= 64;
+      pullStartRef.current = null;
+      if (shouldRefresh) refreshDashboard();
+      else {
+        pullDistanceRef.current = 0;
+      }
+    }
+
+    window.addEventListener("touchstart", startPull, { passive: true });
+    window.addEventListener("touchmove", movePull, { passive: false });
+    window.addEventListener("touchend", finishPull, { passive: true });
+    window.addEventListener("touchcancel", finishPull, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", startPull);
+      window.removeEventListener("touchmove", movePull);
+      window.removeEventListener("touchend", finishPull);
+      window.removeEventListener("touchcancel", finishPull);
+    };
+  }, [data, refreshDashboard, session]);
 
   useEffect(() => {
     if (!supabase) {
@@ -1384,19 +1477,12 @@ function GradebookApp() {
     if (cache.found) setData(cache.data);
     else setRestoring(true);
 
-    loadCanvasDashboard()
-      .then((dashboard) => {
-        const nextData = sanitizeDashboard(
-          dashboard?.connected === false ? null : dashboard,
-        );
-        setData(nextData);
-        writeDashboardCache(session.user.id, nextData);
-      })
-      .catch(() => {
-        if (!cache.found) setData(null);
+    refreshDashboard()
+      .then((success) => {
+        if (!success && !cache.found) setData(null);
       })
       .finally(() => setRestoring(false));
-  }, [session?.user?.id]);
+  }, [refreshDashboard, session?.user?.id]);
 
   useEffect(() => {
     if (session?.user?.id && data) {

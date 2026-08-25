@@ -88,19 +88,56 @@ export function formatCourseUpdatedAt(course) {
 }
 
 // Calculate one assignment group's score using the user's current what-if values.
-export function calculateGroupGrade(assignments, values) {
-  let earned = 0;
-  let possible = 0;
+function scoredAssignments(assignments, values, rules = {}) {
+  const scored = assignments
+    .filter((assignment) => !assignment.omitted && !assignment.excused)
+    .flatMap((assignment) => {
+      const value = values[assignment.id];
+      if (value === "" || value === null || value === undefined) return [];
 
-  assignments.forEach((assignment) => {
-    if (assignment.omitted || assignment.excused) return;
+      const possible = Math.max(Number(assignment.points) || 0, 0);
+      const entered = Math.max(Number(value) || 0, 0);
+      return [{
+        assignment,
+        possible,
+        earned: possible > 0 ? Math.min(entered, possible) : entered,
+        ratio: possible > 0 ? entered / possible : Number.POSITIVE_INFINITY,
+      }];
+    });
 
-    const value = values[assignment.id];
-    if (value === "" || value === null || value === undefined) return;
+  const neverDrop = new Set((rules.neverDrop || []).map(String));
+  const eligible = scored.filter(
+    (entry) =>
+      entry.possible > 0 && !neverDrop.has(String(entry.assignment.id)),
+  );
+  const dropped = new Set();
+  const lowestDropCount = Math.min(
+    Math.max(Number(rules.dropLowest) || 0, 0),
+    Math.max(eligible.length - 1, 0),
+  );
+  [...eligible]
+    .sort((left, right) => left.ratio - right.ratio)
+    .slice(0, lowestDropCount)
+    .forEach((entry) => dropped.add(entry.assignment.id));
+  const remainingEligible = eligible.filter(
+    (entry) => !dropped.has(entry.assignment.id),
+  );
+  const highestDropCount = Math.min(
+    Math.max(Number(rules.dropHighest) || 0, 0),
+    Math.max(remainingEligible.length - 1, 0),
+  );
+  [...remainingEligible]
+    .sort((left, right) => right.ratio - left.ratio)
+    .slice(0, highestDropCount)
+    .forEach((entry) => dropped.add(entry.assignment.id));
 
-    earned += Math.min(Number(value), assignment.points);
-    possible += assignment.points;
-  });
+  return scored.filter((entry) => !dropped.has(entry.assignment.id));
+}
+
+export function calculateGroupGrade(assignments, values, rules = {}) {
+  const scored = scoredAssignments(assignments, values, rules);
+  const earned = scored.reduce((total, entry) => total + entry.earned, 0);
+  const possible = scored.reduce((total, entry) => total + entry.possible, 0);
 
   return {
     earned,
@@ -110,24 +147,14 @@ export function calculateGroupGrade(assignments, values) {
 }
 
 // Return raw earned/possible totals for the group summary table.
-export function groupPointTotals(assignments, values) {
-  return assignments
-    .filter((assignment) => !assignment.omitted && !assignment.excused)
-    .reduce(
-      (totals, assignment) => {
-        const possible = Number(assignment.points) || 0;
-        const entered = Number(values[assignment.id]);
-        const earned = Number.isFinite(entered)
-          ? Math.min(Math.max(entered, 0), possible)
-          : 0;
-
-        return {
-          earned: totals.earned + earned,
-          possible: totals.possible + possible,
-        };
-      },
-      { earned: 0, possible: 0 },
-    );
+export function groupPointTotals(assignments, values, rules = {}) {
+  return scoredAssignments(assignments, values, rules).reduce(
+    (totals, entry) => ({
+      earned: totals.earned + entry.earned,
+      possible: totals.possible + entry.possible,
+    }),
+    { earned: 0, possible: 0 },
+  );
 }
 
 // Avoid trailing decimals for whole point values.
@@ -163,7 +190,7 @@ export function gradeLetterForPercent(percent) {
 export function calculateCourseGrade(course, values) {
   const results = course.groups
     .map((group) => ({
-      ...calculateGroupGrade(group.assignments, values),
+      ...calculateGroupGrade(group.assignments, values, group.rules),
       weight: group.weight,
     }))
     .filter((group) => group.possible > 0);

@@ -232,6 +232,13 @@ async function dashboard(canvasUrl: string, token: string) {
         id: group.id,
         name: group.name,
         weight: Number(group.group_weight ?? 0),
+        rules: {
+          dropLowest: Number(group.rules?.drop_lowest ?? 0),
+          dropHighest: Number(group.rules?.drop_highest ?? 0),
+          neverDrop: Array.isArray(group.rules?.never_drop)
+            ? group.rules.never_drop
+            : [],
+        },
         assignments: (group.assignments ?? []).map((assignment: any) =>
           mapAssignment(
             assignment,
