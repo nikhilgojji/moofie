@@ -1089,14 +1089,24 @@ summary:focus-visible {
 /* Gradebook navigation and account menu */
 
 .grades-shell {
+  --page-pull: 0px;
+  position: relative;
   min-height: 100vh;
   background: var(--bg);
+  transform: translateY(var(--page-pull));
+  transition: transform 240ms cubic-bezier(0.22, 0.75, 0.25, 1);
+  will-change: transform;
+}
+
+.grades-shell.pull-pulling,
+.grades-shell.pull-ready {
+  transition: none;
 }
 
 .refresh-feedback {
-  position: fixed;
+  position: absolute;
   z-index: 40;
-  top: calc(env(safe-area-inset-top) + 8px + var(--pull-offset));
+  top: calc(env(safe-area-inset-top) - 48px);
   left: 50%;
   display: grid;
   width: 38px;
@@ -1109,7 +1119,7 @@ summary:focus-visible {
   opacity: max(0.4, var(--pull-progress));
   pointer-events: none;
   transform: translateX(-50%);
-  transition: top 80ms linear, opacity 140ms ease, transform 140ms ease;
+  transition: opacity 140ms ease, transform 140ms ease;
 }
 
 .refresh-feedback svg {

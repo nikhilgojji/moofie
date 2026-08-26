@@ -60,10 +60,7 @@ function RefreshFeedback({ feedback }) {
       className={`refresh-feedback ${feedback.phase}`}
       role="status"
       aria-label={label}
-      style={{
-        "--pull-progress": Math.min(feedback.distance / 64, 1),
-        "--pull-offset": `${Math.min(feedback.distance, 120)}px`,
-      }}
+      style={{ "--pull-progress": Math.min(feedback.distance / 64, 1) }}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
         {feedback.phase === "done" ? (
@@ -422,7 +419,11 @@ function GradesHome({
   }
 
   return (
-    <main className="grades-shell">
+    <main
+      className={`grades-shell pull-${refreshFeedback.phase}`}
+      style={{ "--page-pull": `${refreshFeedback.distance}px` }}
+    >
+      <RefreshFeedback feedback={refreshFeedback} />
       <SignedInNav
         data={data}
         user={user}
@@ -430,7 +431,6 @@ function GradesHome({
         signOut={signOut}
         deleteAccount={deleteAccount}
       />
-      <RefreshFeedback feedback={refreshFeedback} />
 
       <section className="grades-content">
         <div className="grades-heading">
@@ -967,7 +967,11 @@ function CourseDetails({
   }
 
   return (
-    <main className="grades-shell">
+    <main
+      className={`grades-shell pull-${refreshFeedback.phase}`}
+      style={{ "--page-pull": `${refreshFeedback.distance}px` }}
+    >
+      <RefreshFeedback feedback={refreshFeedback} />
       <SignedInNav
         data={data}
         user={user}
@@ -975,7 +979,6 @@ function CourseDetails({
         signOut={signOut}
         deleteAccount={deleteAccount}
       />
-      <RefreshFeedback feedback={refreshFeedback} />
 
       <section className="details-content">
         <header className="course-header">
@@ -1403,7 +1406,7 @@ function GradebookApp() {
 
     if (showFeedback) {
       window.clearTimeout(refreshFeedbackTimeoutRef.current);
-      setRefreshFeedback({ phase: "refreshing", distance: 64 });
+      setRefreshFeedback({ phase: "refreshing", distance: 88 });
     }
     const request = loadCanvasDashboard();
     refreshRequestRef.current = request;
@@ -1416,12 +1419,12 @@ function GradebookApp() {
       setData(nextData);
       writeDashboardCache(userId, nextData);
       if (showFeedback) {
-        setRefreshFeedback({ phase: "done", distance: 64 });
+        setRefreshFeedback({ phase: "done", distance: 88 });
       }
       return true;
     } catch {
       if (showFeedback) {
-        setRefreshFeedback({ phase: "error", distance: 64 });
+        setRefreshFeedback({ phase: "error", distance: 88 });
       }
       return false;
     } finally {
