@@ -45,8 +45,9 @@ function getCourseTermLabel(name) {
 }
 
 function RefreshFeedback({ feedback }) {
+  if (feedback.phase === "idle") return null;
+
   const label = {
-    idle: "Pull down to refresh",
     pulling: "Pull to refresh",
     ready: "Release to refresh",
     refreshing: "Refreshing grades",
@@ -59,8 +60,10 @@ function RefreshFeedback({ feedback }) {
       className={`refresh-feedback ${feedback.phase}`}
       role="status"
       aria-label={label}
-      aria-hidden={feedback.phase === "idle"}
-      style={{ "--pull-progress": Math.min(feedback.distance / 64, 1) }}
+      style={{
+        "--pull-progress": Math.min(feedback.distance / 64, 1),
+        "--pull-offset": `${Math.min(feedback.distance, 120)}px`,
+      }}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
         {feedback.phase === "done" ? (
@@ -1464,7 +1467,7 @@ function GradebookApp() {
       }
       if (!atTop()) return;
       event.preventDefault();
-      const distance = Math.min(movement * 0.45, 88);
+      const distance = Math.min(movement * 0.45, 120);
       pullDistanceRef.current = distance;
       setRefreshFeedback({
         phase: distance >= 64 ? "ready" : "pulling",
