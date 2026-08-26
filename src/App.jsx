@@ -44,6 +44,40 @@ function getCourseTermLabel(name) {
   return `${terms[match[1].toUpperCase()]} 20${match[2]}`;
 }
 
+function RefreshFeedback({ feedback }) {
+  if (feedback.phase === "idle") return null;
+
+  const label = {
+    pulling: "Pull to refresh",
+    ready: "Release to refresh",
+    refreshing: "Refreshing grades",
+    done: "Grades refreshed",
+    error: "Refresh failed",
+  }[feedback.phase];
+
+  return (
+    <div
+      className={`refresh-feedback ${feedback.phase}`}
+      role="status"
+      aria-label={label}
+      style={{ "--pull-progress": Math.min(feedback.distance / 64, 1) }}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        {feedback.phase === "done" ? (
+          <path d="m6.5 12.5 3.5 3.5 7.5-8" />
+        ) : feedback.phase === "error" ? (
+          <path d="m8 8 8 8m0-8-8 8" />
+        ) : (
+          <>
+            <path d="M19 7v5h-5" />
+            <path d="M18.2 12a7 7 0 1 0-1.5 5" />
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 // Authentication screen: starts Google OAuth and explains required consent.
 function AuthScreen() {
   const [loading, setLoading] = useState(false);
@@ -366,6 +400,7 @@ function GradesHome({
   data,
   user,
   openCourse,
+  refreshFeedback,
   disconnect,
   signOut,
   deleteAccount,
@@ -392,6 +427,7 @@ function GradesHome({
         signOut={signOut}
         deleteAccount={deleteAccount}
       />
+      <RefreshFeedback feedback={refreshFeedback} />
 
       <section className="grades-content">
         <div className="grades-heading">
@@ -789,6 +825,7 @@ function CourseDetails({
   course,
   data,
   user,
+  refreshFeedback,
   disconnect,
   signOut,
   deleteAccount,
@@ -935,6 +972,7 @@ function CourseDetails({
         signOut={signOut}
         deleteAccount={deleteAccount}
       />
+      <RefreshFeedback feedback={refreshFeedback} />
 
       <section className="details-content">
         <header className="course-header">
@@ -1333,7 +1371,12 @@ function GradebookApp() {
   const [accountAction, setAccountAction] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [refreshFeedback, setRefreshFeedback] = useState({
+    phase: "idle",
+    distance: 0,
+  });
   const refreshRequestRef = useRef(null);
+  const refreshFeedbackTimeoutRef = useRef(null);
   const pullStartRef = useRef(null);
   const pullDistanceRef = useRef(0);
 
@@ -1351,10 +1394,14 @@ function GradebookApp() {
     setSelectedCourseId(courseId);
   }
 
-  const refreshDashboard = useCallback(async () => {
+  const refreshDashboard = useCallback(async (showFeedback = false) => {
     const userId = session?.user?.id;
     if (!userId || refreshRequestRef.current) return false;
 
+    if (showFeedback) {
+      window.clearTimeout(refreshFeedbackTimeoutRef.current);
+      setRefreshFeedback({ phase: "refreshing", distance: 64 });
+    }
     const request = loadCanvasDashboard();
     refreshRequestRef.current = request;
 
@@ -1365,14 +1412,31 @@ function GradebookApp() {
       );
       setData(nextData);
       writeDashboardCache(userId, nextData);
+      if (showFeedback) {
+        setRefreshFeedback({ phase: "done", distance: 64 });
+      }
       return true;
     } catch {
+      if (showFeedback) {
+        setRefreshFeedback({ phase: "error", distance: 64 });
+      }
       return false;
     } finally {
       refreshRequestRef.current = null;
       pullDistanceRef.current = 0;
+      if (showFeedback) {
+        refreshFeedbackTimeoutRef.current = window.setTimeout(
+          () => setRefreshFeedback({ phase: "idle", distance: 0 }),
+          900,
+        );
+      }
     }
   }, [session?.user?.id]);
+
+  useEffect(
+    () => () => window.clearTimeout(refreshFeedbackTimeoutRef.current),
+    [],
+  );
 
   useEffect(() => {
     if (!session || !data) return;
@@ -1395,20 +1459,26 @@ function GradebookApp() {
       const movement = event.touches[0].clientY - pullStartRef.current;
       if (movement <= 0) {
         pullDistanceRef.current = 0;
+        setRefreshFeedback({ phase: "idle", distance: 0 });
         return;
       }
       if (!atTop()) return;
       event.preventDefault();
       const distance = Math.min(movement * 0.45, 88);
       pullDistanceRef.current = distance;
+      setRefreshFeedback({
+        phase: distance >= 64 ? "ready" : "pulling",
+        distance,
+      });
     }
 
     function finishPull() {
       const shouldRefresh = pullDistanceRef.current >= 64;
       pullStartRef.current = null;
-      if (shouldRefresh) refreshDashboard();
+      if (shouldRefresh) refreshDashboard(true);
       else {
         pullDistanceRef.current = 0;
+        setRefreshFeedback({ phase: "idle", distance: 0 });
       }
     }
 
@@ -1573,6 +1643,7 @@ function GradebookApp() {
         course={selectedCourse}
         data={data}
         user={session.user}
+        refreshFeedback={refreshFeedback}
         {...accountHandlers}
       />
     );
@@ -1582,6 +1653,7 @@ function GradebookApp() {
     <GradesHome
       data={data}
       user={session.user}
+      refreshFeedback={refreshFeedback}
       openCourse={openCourse}
       {...accountHandlers}
     />,
