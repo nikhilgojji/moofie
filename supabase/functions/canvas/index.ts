@@ -200,16 +200,14 @@ function mapAssignment(
 
 // Combine Canvas courses, groups, assignments, and submissions for the client.
 async function dashboard(canvasUrl: string, token: string) {
-  const profile = await canvasRequest(
-    canvasUrl,
-    "/api/v1/users/self/profile",
-    token,
-  );
-  const rawCourses = await canvasList(
-    canvasUrl,
-    "/api/v1/courses?enrollment_state=active&include[]=total_scores&include[]=teachers&per_page=100",
-    token,
-  );
+  const [profile, rawCourses] = await Promise.all([
+    canvasRequest(canvasUrl, "/api/v1/users/self/profile", token),
+    canvasList(
+      canvasUrl,
+      "/api/v1/courses?enrollment_state=active&include[]=total_scores&include[]=teachers&per_page=100",
+      token,
+    ),
+  ]);
   const usable = rawCourses.filter(
     (course: any) =>
       course.workflow_state === "available" &&

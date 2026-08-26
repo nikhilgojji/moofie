@@ -1382,6 +1382,7 @@ function GradebookApp() {
     distance: 0,
   });
   const refreshRequestRef = useRef(null);
+  const refreshFeedbackActiveRef = useRef(false);
   const refreshFeedbackTimeoutRef = useRef(null);
   const pullStartRef = useRef(null);
   const pullDistanceRef = useRef(0);
@@ -1402,41 +1403,48 @@ function GradebookApp() {
 
   const refreshDashboard = useCallback(async (showFeedback = false) => {
     const userId = session?.user?.id;
-    if (!userId || refreshRequestRef.current) return false;
+    if (!userId) return false;
 
     if (showFeedback) {
       window.clearTimeout(refreshFeedbackTimeoutRef.current);
+      refreshFeedbackActiveRef.current = true;
       setRefreshFeedback({ phase: "refreshing", distance: 88 });
     }
-    const request = loadCanvasDashboard();
-    refreshRequestRef.current = request;
 
-    try {
-      const dashboard = await request;
-      const nextData = sanitizeDashboard(
-        dashboard?.connected === false ? null : dashboard,
-      );
-      setData(nextData);
-      writeDashboardCache(userId, nextData);
-      if (showFeedback) {
-        setRefreshFeedback({ phase: "done", distance: 88 });
-      }
-      return true;
-    } catch {
-      if (showFeedback) {
-        setRefreshFeedback({ phase: "error", distance: 88 });
-      }
-      return false;
-    } finally {
-      refreshRequestRef.current = null;
-      pullDistanceRef.current = 0;
-      if (showFeedback) {
-        refreshFeedbackTimeoutRef.current = window.setTimeout(
-          () => setRefreshFeedback({ phase: "idle", distance: 0 }),
-          900,
-        );
-      }
+    if (!refreshRequestRef.current) {
+      const operation = (async () => {
+        try {
+          const dashboard = await loadCanvasDashboard();
+          const nextData = sanitizeDashboard(
+            dashboard?.connected === false ? null : dashboard,
+          );
+          setData(nextData);
+          writeDashboardCache(userId, nextData);
+          return true;
+        } catch {
+          return false;
+        } finally {
+          refreshRequestRef.current = null;
+        }
+      })();
+      refreshRequestRef.current = operation;
     }
+
+    const success = await refreshRequestRef.current;
+    pullDistanceRef.current = 0;
+
+    if (showFeedback) {
+      setRefreshFeedback({
+        phase: success ? "done" : "error",
+        distance: 88,
+      });
+      refreshFeedbackTimeoutRef.current = window.setTimeout(() => {
+        refreshFeedbackActiveRef.current = false;
+        setRefreshFeedback({ phase: "idle", distance: 0 });
+      }, 700);
+    }
+
+    return success;
   }, [session?.user?.id]);
 
   useEffect(
@@ -1455,8 +1463,9 @@ function GradebookApp() {
       if (
         event.touches.length !== 1 ||
         !atTop() ||
-        refreshRequestRef.current
+        refreshFeedbackActiveRef.current
       ) return;
+      refreshFeedbackActiveRef.current = true;
       pullStartRef.current = event.touches[0].clientY;
     }
 
@@ -1465,6 +1474,7 @@ function GradebookApp() {
       const movement = event.touches[0].clientY - pullStartRef.current;
       if (movement <= 0) {
         pullDistanceRef.current = 0;
+        refreshFeedbackActiveRef.current = false;
         setRefreshFeedback({ phase: "idle", distance: 0 });
         return;
       }
@@ -1484,6 +1494,7 @@ function GradebookApp() {
       if (shouldRefresh) refreshDashboard(true);
       else {
         pullDistanceRef.current = 0;
+        refreshFeedbackActiveRef.current = false;
         setRefreshFeedback({ phase: "idle", distance: 0 });
       }
     }
