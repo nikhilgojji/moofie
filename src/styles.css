@@ -1748,12 +1748,7 @@ summary:focus-visible {
   background: var(--text);
 }
 
-.assignment-preview-item.is-completed .assignment-preview-copy {
-  opacity: 0.58;
-}
-
-.assignment-preview-item.is-completed .assignment-preview-copy > strong,
-.assignment-preview-item.is-completed .assignment-preview-copy > small {
+.assignment-preview-item.is-completed .assignment-preview-copy > strong {
   text-decoration: line-through;
   text-decoration-thickness: 1.5px;
 }
