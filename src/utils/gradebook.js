@@ -2,6 +2,12 @@
 const DAY_MS = 86_400_000;
 const UPCOMING_WINDOW_MS = 7 * DAY_MS;
 
+function endOfLocalDay(value) {
+  const end = new Date(value);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
 // Turn an ISO timestamp from Canvas into a short date students can scan quickly.
 export function formatDueDate(value) {
   if (!value) return "No due date";
@@ -26,10 +32,16 @@ export function isUpcoming(assignment, now = new Date()) {
 
   return Boolean(
     dueAt &&
-      dueAt >= now &&
+      endOfLocalDay(dueAt) >= now &&
       dueAt <= windowEnd &&
-      !assignment.submitted &&
       !assignment.missing,
+  );
+}
+
+// Past work begins after the assignment's local calendar day has ended.
+export function isPast(assignment, now = new Date()) {
+  return Boolean(
+    assignment.dueAt && endOfLocalDay(assignment.dueAt) < now,
   );
 }
 
@@ -53,13 +65,17 @@ export function getAssignmentList(courses, type) {
         .filter((assignment) =>
           type === "upcoming"
             ? isUpcoming(assignment, now)
-            : assignment.missing,
+            : type === "past"
+              ? isPast(assignment, now)
+              : assignment.missing,
         )
         .map((assignment) => ({ course, assignment })),
     )
     .sort((first, second) => {
       if (type === "missing") return 0;
-      return new Date(first.assignment.dueAt) - new Date(second.assignment.dueAt);
+      const difference =
+        new Date(first.assignment.dueAt) - new Date(second.assignment.dueAt);
+      return type === "past" ? -difference : difference;
     });
 }
 
