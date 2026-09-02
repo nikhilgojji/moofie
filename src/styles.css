@@ -1707,6 +1707,9 @@ summary:focus-visible {
 }
 
 .assignment-preview-copy > strong {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
   overflow: hidden;
   color: var(--text);
   font-size: 14px;
@@ -1780,8 +1783,17 @@ summary:focus-visible {
 }
 
 .assignment-preview-item.is-completed .assignment-preview-copy > strong {
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
+  text-decoration: none;
+}
+
+.assignment-preview-item.is-completed .assignment-preview-copy > strong::after {
+  position: absolute;
+  top: 52%;
+  right: 0;
+  left: 0;
+  border-top: 1px solid currentColor;
+  content: "";
+  pointer-events: none;
 }
 
 .assignment-preview-item b {
