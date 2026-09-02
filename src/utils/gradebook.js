@@ -1,5 +1,6 @@
 // Store this conversion once so relative-date calculations stay readable.
 const DAY_MS = 86_400_000;
+const UPCOMING_WINDOW_MS = 7 * DAY_MS;
 
 // Turn an ISO timestamp from Canvas into a short date students can scan quickly.
 export function formatDueDate(value) {
@@ -18,11 +19,15 @@ export function activeAssignments(course) {
   return (course.assignments || []).filter((assignment) => !assignment.omitted);
 }
 
-// An assignment is upcoming only if it is still actionable and due in the future.
+// Keep the dashboard focused on actionable work due within the next seven days.
 export function isUpcoming(assignment, now = new Date()) {
+  const dueAt = assignment.dueAt ? new Date(assignment.dueAt) : null;
+  const windowEnd = new Date(now.getTime() + UPCOMING_WINDOW_MS);
+
   return Boolean(
-    assignment.dueAt &&
-      new Date(assignment.dueAt) >= now &&
+    dueAt &&
+      dueAt >= now &&
+      dueAt <= windowEnd &&
       !assignment.submitted &&
       !assignment.missing,
   );

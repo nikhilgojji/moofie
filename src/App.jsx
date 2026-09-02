@@ -374,7 +374,7 @@ function AssignmentPreview({ type, items, completed, onToggleCompleted }) {
   if (!type) return null;
 
   const title =
-    type === "upcoming" ? "Upcoming assignments" : "Missing assignments";
+    type === "upcoming" ? "Upcoming this week" : "Missing assignments";
 
   return (
     <section className="assignment-preview" aria-label={title}>
@@ -390,7 +390,7 @@ function AssignmentPreview({ type, items, completed, onToggleCompleted }) {
             </strong>
             <p>
               {type === "upcoming"
-                ? "You have no upcoming assignments right now."
+                ? "You have no assignments due in the next seven days."
                 : "You have no missing assignments. Nice work."}
             </p>
           </div>
