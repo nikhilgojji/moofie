@@ -44,6 +44,40 @@ function getCourseTermLabel(name) {
   return `${terms[match[1].toUpperCase()]} 20${match[2]}`;
 }
 
+function completedAssignmentsStorageKey(userId) {
+  return `moofie-completed-assignments:${userId}`;
+}
+
+function assignmentKey(courseId, assignmentId) {
+  return `${courseId}:${assignmentId}`;
+}
+
+function readCompletedAssignments(userId) {
+  if (!userId) return new Set();
+
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(completedAssignmentsStorageKey(userId)) ||
+        "[]",
+    );
+    return new Set(Array.isArray(saved) ? saved.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeCompletedAssignments(userId, completed) {
+  if (!userId) return;
+  try {
+    window.localStorage.setItem(
+      completedAssignmentsStorageKey(userId),
+      JSON.stringify([...completed]),
+    );
+  } catch {
+    // The checkbox still works for this session if browser storage is blocked.
+  }
+}
+
 function RefreshFeedback({ feedback }) {
   if (feedback.phase === "idle") return null;
 
@@ -275,9 +309,15 @@ function ConnectScreen({ onConnect, onSignOut, onDeleteAccount }) {
 }
 
 // Dashboard summary: calculate global upcoming/missing counts and expose filters.
-function GradeSummary({ courses, activeFilter, onToggle }) {
-  const upcoming = getAssignmentList(courses, "upcoming");
-  const missing = getAssignmentList(courses, "missing");
+function GradeSummary({ courses, activeFilter, completed, onToggle }) {
+  const isCompleted = ({ course, assignment }) =>
+    completed.has(assignmentKey(course.id, assignment.id));
+  const upcoming = getAssignmentList(courses, "upcoming").filter(
+    (item) => !isCompleted(item),
+  );
+  const missing = getAssignmentList(courses, "missing").filter(
+    (item) => !isCompleted(item),
+  );
 
   return (
     <div className="grade-summary" aria-label="Assignment summary">
@@ -330,7 +370,7 @@ function GradeSummary({ courses, activeFilter, onToggle }) {
   );
 }
 
-function AssignmentPreview({ type, items }) {
+function AssignmentPreview({ type, items, completed, onToggleCompleted }) {
   if (!type) return null;
 
   const title =
@@ -358,7 +398,9 @@ function AssignmentPreview({ type, items }) {
       ) : (
         <div className="assignment-preview-list">
           {items.map(({ course, assignment }) => {
-            const content = (
+            const key = assignmentKey(course.id, assignment.id);
+            const isDone = completed.has(key);
+            const details = (
               <>
                 <span>{formatCourseDisplayName(course.name)}</span>
                 <strong>{assignment.title}</strong>
@@ -370,23 +412,46 @@ function AssignmentPreview({ type, items }) {
               </>
             );
 
-            return assignment.htmlUrl ? (
-              <a
-                className="assignment-preview-item"
-                href={assignment.htmlUrl}
-                key={`${course.id}-${assignment.id}`}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {content}
-                <b aria-hidden="true">↗</b>
-              </a>
-            ) : (
+            return (
               <div
-                className="assignment-preview-item"
-                key={`${course.id}-${assignment.id}`}
+                className={
+                  isDone
+                    ? "assignment-preview-item is-completed"
+                    : "assignment-preview-item"
+                }
+                key={key}
               >
-                {content}
+                <button
+                  className="assignment-complete-toggle"
+                  type="button"
+                  role="checkbox"
+                  aria-checked={isDone}
+                  aria-label={`Mark ${assignment.title} ${
+                    isDone ? "not finished" : "finished"
+                  }`}
+                  onClick={() => onToggleCompleted(course.id, assignment)}
+                >
+                  {isDone && (
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="m3.5 8 3 3 6-6" />
+                    </svg>
+                  )}
+                </button>
+
+                {assignment.htmlUrl ? (
+                  <a
+                    className="assignment-preview-copy"
+                    href={assignment.htmlUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {details}
+                  </a>
+                ) : (
+                  <div className="assignment-preview-copy">{details}</div>
+                )}
+
+                {assignment.htmlUrl && <b aria-hidden="true">↗</b>}
               </div>
             );
           })}
@@ -406,13 +471,79 @@ function GradesHome({
   deleteAccount,
 }) {
   const [activeFilter, setActiveFilter] = useState(null);
+  const [completedAssignments, setCompletedAssignments] = useState(() =>
+    readCompletedAssignments(user?.id),
+  );
   const termLabel = data.courses
     .map((course) => getCourseTermLabel(course.name))
     .find(Boolean);
 
   const previewItems = activeFilter
-    ? getAssignmentList(data.courses, activeFilter)
+    ? getAssignmentList(data.courses, activeFilter).filter(
+        ({ course, assignment }) => {
+          const isDone = completedAssignments.has(
+            assignmentKey(course.id, assignment.id),
+          );
+          if (!isDone) return true;
+          return assignment.dueAt && new Date(assignment.dueAt) > new Date();
+        },
+      )
     : [];
+
+  useEffect(() => {
+    setCompletedAssignments(readCompletedAssignments(user?.id));
+  }, [user?.id]);
+
+  useEffect(() => {
+    const deadlines = new Map(
+      data.courses.flatMap((course) =>
+        (course.assignments || []).map((assignment) => [
+          assignmentKey(course.id, assignment.id),
+          assignment.dueAt ? new Date(assignment.dueAt).getTime() : null,
+        ]),
+      ),
+    );
+
+    function removeExpired() {
+      const now = Date.now();
+      setCompletedAssignments((current) => {
+        const next = new Set(
+          [...current].filter((key) => {
+            const deadline = deadlines.get(key);
+            return Number.isFinite(deadline) && deadline > now;
+          }),
+        );
+        if (next.size === current.size) return current;
+        writeCompletedAssignments(user?.id, next);
+        return next;
+      });
+    }
+
+    removeExpired();
+    const nextDeadline = Math.min(
+      ...[...completedAssignments]
+        .map((key) => deadlines.get(key))
+        .filter((deadline) => Number.isFinite(deadline) && deadline > Date.now()),
+    );
+    if (!Number.isFinite(nextDeadline)) return undefined;
+
+    const timeoutId = window.setTimeout(
+      removeExpired,
+      Math.min(nextDeadline - Date.now() + 1_000, 2_147_483_647),
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [completedAssignments, data.courses, user?.id]);
+
+  function toggleCompleted(courseId, assignment) {
+    const key = assignmentKey(courseId, assignment.id);
+    setCompletedAssignments((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      writeCompletedAssignments(user?.id, next);
+      return next;
+    });
+  }
 
   function toggleFilter(nextFilter) {
     setActiveFilter((current) => (current === nextFilter ? null : nextFilter));
@@ -443,12 +574,18 @@ function GradesHome({
 
           <GradeSummary
             activeFilter={activeFilter}
+            completed={completedAssignments}
             courses={data.courses}
             onToggle={toggleFilter}
           />
         </div>
 
-        <AssignmentPreview items={previewItems} type={activeFilter} />
+        <AssignmentPreview
+          completed={completedAssignments}
+          items={previewItems}
+          type={activeFilter}
+          onToggleCompleted={toggleCompleted}
+        />
 
         {data.courses.length === 0 ? (
           <div className="empty-card">
@@ -470,6 +607,13 @@ function GradesHome({
             <div className="grade-list">
               {data.courses.map((course) => {
                 const counts = courseAssignmentCounts(course);
+                const visibleUpcoming = getAssignmentList([course], "upcoming")
+                  .filter(
+                    ({ assignment }) =>
+                      !completedAssignments.has(
+                        assignmentKey(course.id, assignment.id),
+                      ),
+                  ).length;
 
                 return (
                   <button
@@ -490,7 +634,7 @@ function GradesHome({
                         {counts.total}{" "}
                         {counts.total === 1 ? "assignment" : "assignments"}
                         {" · "}
-                        {counts.upcoming} upcoming
+                        {visibleUpcoming} upcoming
                       </p>
                     </div>
                     <div className="course-grade">

@@ -1669,9 +1669,9 @@ summary:focus-visible {
 .assignment-preview-item {
   display: grid;
   min-height: 70px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 2px 18px;
+  gap: 12px;
   padding: 13px 14px;
   border: 1px solid var(--line-soft);
   border-radius: 10px;
@@ -1687,19 +1687,21 @@ summary:focus-visible {
   transform: none;
 }
 
-.assignment-preview-item > span,
-.assignment-preview-item > strong,
-.assignment-preview-item > small {
-  grid-column: 1;
+.assignment-preview-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
 }
 
-.assignment-preview-item > span {
+.assignment-preview-copy > span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
 }
 
-.assignment-preview-item > strong {
+.assignment-preview-copy > strong {
   overflow: hidden;
   color: var(--text);
   font-size: 14px;
@@ -1708,14 +1710,55 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-.assignment-preview-item > small {
+.assignment-preview-copy > small {
   color: var(--muted);
   font-size: 12px;
 }
 
+.assignment-complete-toggle {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--muted);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.assignment-complete-toggle:hover,
+.assignment-complete-toggle:focus-visible {
+  border-color: var(--text);
+  outline: none;
+}
+
+.assignment-complete-toggle svg {
+  width: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.assignment-preview-item.is-completed .assignment-complete-toggle {
+  border-color: var(--text);
+  background: var(--text);
+}
+
+.assignment-preview-item.is-completed .assignment-preview-copy {
+  opacity: 0.58;
+}
+
+.assignment-preview-item.is-completed .assignment-preview-copy > strong,
+.assignment-preview-item.is-completed .assignment-preview-copy > small {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
 .assignment-preview-item b {
-  grid-column: 2;
-  grid-row: 1 / span 3;
   color: var(--text);
   font-size: 18px;
 }
