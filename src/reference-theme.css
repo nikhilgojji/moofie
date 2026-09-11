@@ -84,6 +84,16 @@
   color-scheme: light;
 }
 
+/* Match the course picker’s ink throughout the light-mode gradebook. */
+:root[data-theme="light"] :is(.grades-content, .details-content, .assignment-viewer) {
+  --text: var(--text-strong);
+  --muted: var(--text-strong);
+  color: var(--text-strong);
+}
+:root[data-theme="light"] .home-heading h1 {
+  color: var(--text-strong);
+}
+
 body { font-size: 16px; line-height: 1.7; }
 ::selection { color: var(--text-strong); background: var(--accent-soft); }
 * { scrollbar-width: thin; scrollbar-color: var(--line) var(--bg); }
