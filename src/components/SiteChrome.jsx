@@ -8,7 +8,7 @@ import {
 } from "../pushNotifications";
 
 // Remember the explicit choice under one stable browser-storage key.
-const THEME_STORAGE_KEY = "moofie-theme";
+import { applyTheme, getInitialTheme, THEME_STORAGE_KEY } from "../utils/theme";
 
 function formatCourseName(name) {
   return String(name ?? "")
@@ -27,32 +27,12 @@ function formatNotificationTime(value) {
   }).format(new Date(value));
 }
 
-// Prefer a saved choice, then fall back to the operating-system color scheme.
-function getInitialTheme() {
-  let savedTheme;
-  try {
-    savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-  } catch {
-    // Browser privacy settings may make persistent storage unavailable.
-  }
-  if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
-  return window.matchMedia?.("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
-}
-
 // Apply and persist dark/light mode while exposing an accessible toggle button.
 export function ThemeToggle() {
   const [theme, setTheme] = useState(getInitialTheme);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {
-      // The selected theme still applies to this tab without persistence.
-    }
+    applyTheme(theme);
   }, [theme]);
 
   const nextTheme = theme === "dark" ? "light" : "dark";
@@ -61,7 +41,10 @@ export function ThemeToggle() {
     <button
       className="theme-toggle"
       type="button"
-      onClick={() => setTheme(nextTheme)}
+      onClick={() => {
+        setTheme(nextTheme);
+        try { localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch { /* Apply without persistence. */ }
+      }}
       aria-label={`Switch to ${nextTheme} mode`}
       title={`Switch to ${nextTheme} mode`}
     >
@@ -109,7 +92,15 @@ export function SiteFooter() {
 }
 
 // Signed-in header combines project navigation with account-management actions.
-export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) {
+export function SignedInNav({
+  data,
+  user,
+  activeView = "home",
+  onNavigate,
+  disconnect,
+  signOut,
+  deleteAccount,
+}) {
   const profileMenuRef = useRef(null);
   const notificationsMenuRef = useRef(null);
   const notificationsKey = `moofie-grade-notifications-seen:${user?.id}`;
@@ -226,9 +217,35 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
 
   return (
     <header className="topbar signed-in-nav">
-      <a className="wordmark" href="/">
+      <a
+        className="wordmark"
+        href="/"
+        onClick={(event) => {
+          if (!onNavigate) return;
+          event.preventDefault();
+          onNavigate("home");
+        }}
+      >
         <span>Moofie</span>
       </a>
+      <nav className="app-view-nav" aria-label="Moofie sections">
+        <button
+          className={activeView === "home" ? "is-active" : ""}
+          type="button"
+          aria-current={activeView === "home" ? "page" : undefined}
+          onClick={() => onNavigate?.("home")}
+        >
+          Home
+        </button>
+        <button
+          className={activeView === "grades" ? "is-active" : ""}
+          type="button"
+          aria-current={activeView === "grades" ? "page" : undefined}
+          onClick={() => onNavigate?.("grades")}
+        >
+          Grades
+        </button>
+      </nav>
       <div className="signed-in-nav-actions">
         <details
           className="notifications-menu"
@@ -296,18 +313,7 @@ export function SignedInNav({ data, user, disconnect, signOut, deleteAccount }) 
                     </>
                   );
 
-                  return notification.assignment.htmlUrl ? (
-                    <a
-                      href={notification.assignment.htmlUrl}
-                      key={notification.id}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {content}
-                    </a>
-                  ) : (
-                    <div key={notification.id}>{content}</div>
-                  );
+                  return <div key={notification.id}>{content}</div>;
                 })}
               </div>
             )}

@@ -11,10 +11,14 @@ export function sanitizeDashboard(data) {
     ...data,
     courses: data.courses
       .filter(
-        (course) =>
-        !/^(placement exam:|shape student training\b)/i.test(
-          String(course?.name ?? "").trim(),
-        ),
+        (course) => {
+          const name = String(course?.name ?? "").trim();
+          return (
+            !/^(placement exam:|shape student training\b)/i.test(name) &&
+            !/academic success/i.test(name) &&
+            !/^(?:[A-Z]\d{2}-)?CSE\s*001(?:\s+\d{2})?$/i.test(name)
+          );
+        },
       )
       .map((course) => {
         const hasGradedAssignment = (course.assignments || []).some(
@@ -26,7 +30,13 @@ export function sanitizeDashboard(data) {
         );
 
         return hasGradedAssignment
-          ? course
+          ? {
+              ...course,
+              letter:
+                String(course.letter || "").toUpperCase() === "A+"
+                  ? "A"
+                  : course.letter,
+            }
           : { ...course, grade: null, letter: null };
       }),
   };

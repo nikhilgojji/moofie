@@ -83,12 +83,16 @@ async function getCurrentGrades(connection: Connection, token: string) {
     token,
   );
   const usable = courses.filter(
-    (course) =>
-      course.workflow_state === "available" &&
-      !course.access_restricted_by_date &&
-      !/^(placement exam:|shape student training\b)/i.test(
-        String(course.name ?? "").trim(),
-      ),
+    (course) => {
+      const name = String(course.name ?? "").trim();
+      return (
+        course.workflow_state === "available" &&
+        !course.access_restricted_by_date &&
+        !/^(placement exam:|shape student training\b)/i.test(name) &&
+        !/academic success/i.test(name) &&
+        !/^(?:[A-Z]\d{2}-)?CSE\s*001(?:\s+\d{2})?$/i.test(name)
+      );
+    },
   );
 
   const snapshots = await Promise.all(

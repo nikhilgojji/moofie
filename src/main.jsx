@@ -7,6 +7,7 @@ import "@fontsource-variable/libre-franklin";
 // Import the top-level UI component and the global visual rules it depends on.
 import App from "./App";
 import "./styles.css";
+import "./reference-theme.css";
 
 // Find the empty #root element in index.html and let React control its contents.
 ReactDOM.createRoot(document.getElementById("root")).render(

@@ -1,4 +1,18 @@
 import { supabase } from "./supabase";
+import { createRequestCache } from "./utils/requestCache";
+
+const courseReads = createRequestCache();
+export function clearCanvasReadCache() { courseReads.clear(); }
+supabase?.auth.onAuthStateChange(event => {
+  if (event === "SIGNED_OUT" || event === "SIGNED_IN") clearCanvasReadCache();
+});
+
+async function readCourse(action, payload) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Sign in to load your course.");
+  return courseReads.read(session.user.id, JSON.stringify([action, payload]), () => callCanvasFunction(action, payload));
+}
 
 const REQUEST_TIMEOUT_MS = 45_000;
 
@@ -50,13 +64,58 @@ export function loadCanvasDashboard() {
   return callCanvasFunction("dashboard");
 }
 
+// Load navigation content for one Canvas course only when the user opens it.
+export function loadCourseResources(courseId) {
+  return readCourse("course_resources", { courseId, includePeople: false });
+}
+
+export function loadCoursePeople(courseId) {
+  return readCourse("course_resources", { courseId, part: "people" });
+}
+
+export function loadCoursePage(courseId, pageUrl) {
+  return readCourse("course_page", { courseId, pageUrl });
+}
+
+export function loadCourseContent(courseId, kind, contentId) {
+  return readCourse("course_content", { courseId, kind, contentId });
+}
+
+export function loadCourseTool(courseId, toolId) {
+  return callCanvasFunction("course_tool", { courseId, toolId });
+}
+
+export async function loadCourseFile(courseId, fileId, contentType) {
+  const data = await callCanvasFunction("course_file", { courseId, fileId });
+  if (!(data instanceof Blob)) {
+    throw new Error("Moofie received an invalid file from Canvas.");
+  }
+  return new Blob([data], {
+    type: contentType || "application/octet-stream",
+  });
+}
+
+export function loadAssignmentDetails(courseId, assignmentId) {
+  return callCanvasFunction("assignment_details", { courseId, assignmentId });
+}
+
+export function submitAssignment(courseId, assignmentId, submission) {
+  return callCanvasFunction("submit_assignment", {
+    courseId,
+    assignmentId,
+    submission,
+  });
+}
+
 // Validate and securely store a Canvas URL and personal access token.
 export function connectCanvasAccount(canvasUrl, token) {
+  clearCanvasReadCache();
   return callCanvasFunction("connect", { canvasUrl, token });
 }
 
 // Remove only the saved Canvas connection while keeping the Moofie account.
 export function disconnectCanvasAccount() {
+  clearCanvasReadCache();
   return callCanvasFunction("disconnect");
 }
 

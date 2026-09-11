@@ -11,6 +11,8 @@ node_modules/
 dist/
 dist-ssr/
 supabase/.temp/
+.chrome-debug-temp/
+src/utils/.*.fixture.mjs
 
 # Environment files and secrets
 .env
