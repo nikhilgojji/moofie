@@ -1,3 +1,4 @@
+import { FilePreview, FileDownload, useFilePreview } from "./components/FilePreview";
 import { CourseAvatar as CourseAuthorAvatar } from "./components/CourseAvatar";
 import { CoursePeoplePanel } from "./components/CoursePeoplePanel";
 import { clearCanvasReadCache } from "./canvasApi";
@@ -24,7 +25,6 @@ import {
   disconnectCanvasAccount,
   loadAssignmentDetails,
   loadCanvasDashboard,
-  loadCourseFile,
   loadCoursePage,
   loadCourseContent,
   loadCourseResources,
@@ -938,62 +938,15 @@ function PdfPreview({ fileUrl, fileBlob, name }) {
 }
 
 function SubmittedAttachment({ attachment, courseId }) {
-  const [fileUrl, setFileUrl] = useState("");
-  const [fileBlob, setFileBlob] = useState(null);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const isPdf = attachment.contentType?.includes("pdf") ||
-    String(attachment.name || "").toLowerCase().endsWith(".pdf");
-
-  useEffect(() => () => {
-    if (fileUrl) URL.revokeObjectURL(fileUrl);
-  }, [fileUrl]);
-
-  async function togglePreview() {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    setOpen(true);
-    if (fileUrl || loading) return;
-    setLoading(true);
-    setError("");
-    try {
-      const file = await loadCourseFile(
-        courseId,
-        attachment.id,
-        attachment.contentType || (isPdf ? "application/pdf" : "application/octet-stream"),
-      );
-      setFileBlob(file);
-      setFileUrl(URL.createObjectURL(file));
-    } catch (requestError) {
-      setError(requestError.message || "Moofie could not load this submitted file.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="submitted-attachment">
-      <button type="button" aria-expanded={open} onClick={togglePreview}>
-        {open ? "Hide" : "View"} {attachment.name}
-      </button>
-      {open && (
-        <div className="assignment-submission-preview">
-          {loading ? (
-            <ContentSkeleton label="Loading your submitted file" variant="document" />
-          ) : error ? (
-            <p className="submission-message error" role="alert">{error}</p>
-          ) : isPdf && fileUrl ? (
-            <PdfPreview fileUrl={fileUrl} fileBlob={fileBlob} name={attachment.name} />
-          ) : fileUrl ? (
-            <a href={fileUrl} download={attachment.name}>Download {attachment.name}</a>
-          ) : null}
-        </div>
-      )}
-    </div>
-  );
+  const preview = useFilePreview(courseId, attachment, open);
+  return <div className="submitted-attachment">
+    <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? "Hide" : "View"} {attachment.name}</button>
+    {open && <div className="assignment-submission-preview">
+      <FilePreview preview={preview} file={attachment} PdfPreview={PdfPreview} />
+      <FileDownload courseId={courseId} file={attachment} preview={preview}>Download {attachment.name}</FileDownload>
+    </div>}
+  </div>;
 }
 
 function CourseContentViewer({ viewer, loading, error, chrome }) {
@@ -1045,10 +998,8 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
-  const [filePreviewUrl, setFilePreviewUrl] = useState("");
-  const [filePreviewBlob, setFilePreviewBlob] = useState(null);
-  const [filePreviewLoading, setFilePreviewLoading] = useState(false);
-  const [filePreviewError, setFilePreviewError] = useState("");
+  const filePreview = useFilePreview(viewer?.courseId, originalItem, viewer?.type === "file");
+  const filePreviewLoading = filePreview.loading;
   const submissionPanelRef = useRef(null);
 
   useEffect(() => {
@@ -1082,57 +1033,6 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
       active = false;
     };
   }, [originalItem, viewer?.courseId, viewer?.type]);
-
-  useEffect(() => {
-    if (
-      viewer?.type !== "file" ||
-      !viewer.courseId ||
-      !originalItem?.id || originalItem?.needsDetails
-    ) {
-      setFilePreviewUrl("");
-      setFilePreviewBlob(null);
-      setFilePreviewLoading(false);
-      setFilePreviewError("");
-      return undefined;
-    }
-
-    let active = true;
-    let objectUrl = "";
-    setFilePreviewUrl("");
-    setFilePreviewBlob(null);
-    setFilePreviewLoading(true);
-    setFilePreviewError("");
-    const inferredContentType = originalItem.contentType ||
-      (String(originalItem.name || "").toLowerCase().endsWith(".pdf")
-        ? "application/pdf"
-        : "application/octet-stream");
-    loadCourseFile(
-      viewer.courseId,
-      originalItem.id,
-      inferredContentType,
-    )
-      .then((file) => {
-        if (!active) return;
-        objectUrl = URL.createObjectURL(file);
-        setFilePreviewBlob(file);
-        setFilePreviewUrl(objectUrl);
-      })
-      .catch((requestError) => {
-        if (active) {
-          setFilePreviewError(
-            requestError.message || "Moofie could not preview this file.",
-          );
-        }
-      })
-      .finally(() => {
-        if (active) setFilePreviewLoading(false);
-      });
-
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [originalItem?.contentType, originalItem?.id, originalItem?.name, originalItem?.needsDetails, viewer?.courseId, viewer?.type]);
 
   useEffect(() => {
     if (!viewer || pageLoading || detailsLoading || filePreviewLoading) return;
@@ -1285,8 +1185,6 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
     const index = files.findIndex(file => String(file.id) === String(item.id));
     const previousFile = index > 0 ? files[index - 1] : null;
     const nextFile = index >= 0 ? files[index + 1] : null;
-    const downloadUrl = filePreviewUrl || item.url || item.previewUrl;
-    const isPdf = item.contentType?.includes("pdf") || String(item.name).toLowerCase().endsWith(".pdf");
     const close = () => window.history.go(-(viewer.readerDepth || 1));
     const openFile = file => writeNavigation({ moofieViewer: { ...viewer, item: file, readerDepth: (viewer.readerDepth || 1) + 1 } });
     return createPortal(
@@ -1296,12 +1194,12 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
           <h1 title={item.name}>{item.name}</h1>
           <div className="document-reader-actions">
             <details className="document-reader-info"><summary aria-label="File information" title="File information"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v1" /></svg></summary><div><strong>{item.name}</strong><span>{formatFileSize(item.size)}</span>{item.updatedAt && <span>Modified {formatResourceDate(item.updatedAt)}</span>}</div></details>
-            {downloadUrl && <a href={downloadUrl} download={item.name} aria-label="Download file" title="Download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" /></svg></a>}
+            <FileDownload key={item.id} courseId={viewer.courseId} file={item} preview={filePreview} aria-label="Download file" title="Download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" /></svg></FileDownload>
             <button ref={readerCloseRef} type="button" onClick={close} aria-label="Close document" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
           </div>
         </header>
         <div className="document-reader-content">
-          {(pageLoading || originalItem?.needsDetails || filePreviewLoading) && !pageError ? <ContentSkeleton label="Opening document" variant="document" /> : filePreviewError || pageError ? <div className="document-reader-message" role="alert"><p>{filePreviewError || pageError}</p>{downloadUrl && <a href={downloadUrl} download={item.name}>Download file</a>}</div> : isPdf ? <PdfPreview fileUrl={filePreviewUrl} fileBlob={filePreviewBlob} name={item.name} /> : item.contentType?.startsWith("image/") ? <div className="document-reader-image"><img src={filePreviewUrl} alt={item.name} /></div> : item.contentType?.startsWith("text/") ? <iframe className="document-reader-frame" src={filePreviewUrl} title={item.name} /> : <div className="document-reader-message"><p>This file type opens in its own application.</p>{downloadUrl && <a href={downloadUrl} download={item.name}>Download {item.name}</a>}</div>}
+          {pageError ? <div className="document-reader-message" role="alert">{pageError}</div> : <FilePreview preview={filePreview} file={item} PdfPreview={PdfPreview} />}
         </div>
         <footer className="document-reader-footer"><div><button type="button" disabled={!previousFile} onClick={() => openFile(previousFile)} title={previousFile?.name}>← Previous</button><button type="button" disabled={!nextFile} onClick={() => openFile(nextFile)} title={nextFile?.name}>Next →</button></div><button type="button" onClick={close}>Close</button></footer>
       </section>, document.body,
@@ -1360,47 +1258,6 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
             <div className="home-resource-error">{error || pageError}</div>
           ) : viewer?.type === "person" ? (
             <CoursePerson key={`${viewer.courseId}:${item.id}`} courseId={viewer.courseId} person={item} availableCourses={chrome?.data?.courses} />
-          ) : viewer?.type === "file" ? (
-            <>
-              <div className="native-file-toolbar">
-                {!item.locked && (filePreviewUrl || item.url || item.previewUrl) ? (
-                  <p>
-                    <a href={filePreviewUrl || item.url || item.previewUrl} download={item.name}>
-                      Download {item.name}
-                    </a>
-                    <small>({formatFileSize(item.size)})</small>
-                  </p>
-                ) : (
-                  <p>
-                    <span>{item.name}</span>
-                    <small>({formatFileSize(item.size)})</small>
-                  </p>
-                )}
-              </div>
-              {filePreviewLoading ? (
-                <ContentSkeleton label="Loading document preview…" variant="document" />
-              ) : filePreviewError ? (
-                <div className="native-file-download">
-                  <p>{filePreviewError}</p>
-                  {(item.url || item.previewUrl) && (
-                    <a href={item.url || item.previewUrl} rel="noreferrer" target="_blank">
-                      Open or download file
-                    </a>
-                  )}
-                </div>
-              ) : item.contentType?.includes("pdf") || item.name.toLowerCase().endsWith(".pdf") ? (
-                <PdfPreview fileUrl={filePreviewUrl} fileBlob={filePreviewBlob} name={item.name} />
-              ) : item.contentType?.startsWith("image/") ? (
-                <img className="native-file-image" src={filePreviewUrl} alt={item.name} />
-              ) : item.contentType?.startsWith("text/") ? (
-                <iframe className="native-file-frame" src={filePreviewUrl} title={item.name} />
-              ) : (
-                <div className="native-file-download">
-                  <p>A browser preview is not available for this file type.</p>
-                  <a href={item.url || item.previewUrl} rel="noreferrer" target="_blank">Open or download file</a>
-                </div>
-              )}
-            </>
           ) : viewer?.type === "assignment" ? (
             <div className="native-assignment-view">
               <div className="native-assignment-facts">

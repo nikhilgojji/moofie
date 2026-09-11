@@ -85,6 +85,11 @@ export function loadCourseTool(courseId, toolId) {
   return callCanvasFunction("course_tool", { courseId, toolId });
 }
 
+export function loadCourseFilePreview(courseId, fileId) {
+  // Signed document sessions expire: obtain a fresh one on open or retry.
+  return callCanvasFunction("course_file", { courseId, fileId, preview: true });
+}
+
 export async function loadCourseFile(courseId, fileId, contentType) {
   const data = await callCanvasFunction("course_file", { courseId, fileId });
   if (!(data instanceof Blob)) {

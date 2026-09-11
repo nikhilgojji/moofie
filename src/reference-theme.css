@@ -505,3 +505,19 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
   .course-person-profile { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .people-avatar.profile-avatar { width: 80px; height: 80px; }
 }
+.document-reader-office {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  position: relative;
+}
+.document-preview-toolbar { display: flex; justify-content: flex-end; padding: 8px 16px; }
+.document-preview-toolbar button { color: var(--accent); background: transparent; border: 0; cursor: pointer; font: inherit; }
+.document-reader-office > .content-skeleton { position: absolute; inset: 48px 0 0; pointer-events: none; background: var(--bg); }
+.document-reader-office > iframe { flex: 1; min-height: 400px; width: 100%; border: 0; }
+.assignment-submission-preview .document-reader-office { height: 70vh; }
+.document-reader-text { margin: 0; padding: 24px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.document-reader-media { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+.document-reader-media video { max-width: 100%; max-height: 75vh; }
+.document-reader-media audio { width: min(100%, 640px); }

@@ -1,3 +1,4 @@
+import { loadFilePreview } from "./filePreview.ts";
 import { mapCoursePerson, loadCoursePerson } from "./coursePeople.ts";
 import { completeModules, moduleExternalUrl } from "./courseModules.ts";
 import { readToolContent } from "./toolContent.ts";
@@ -1081,6 +1082,10 @@ Deno.serve(async (request) => {
         if (!Number.isSafeInteger(fileId) || fileId <= 0) {
           return respond({ error: "Choose a valid course file." }, 400);
         }
+        if (body.preview === true) return respond(await loadFilePreview(
+          connection.canvas_url, token, fileId,
+          async path => (await canvasRequest(connection.canvas_url, path, token)).data,
+        ));
         const file = await courseFile(connection.canvas_url, token, fileId);
         return new Response(file.body, {
           headers: {
