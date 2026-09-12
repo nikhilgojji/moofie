@@ -1,4 +1,4 @@
-import { compareCanvasCollections, resourceSection } from "./courseAudit.ts";
+import { compareCanvasCollections, compareCanvasCourse, resourceSection } from "./courseAudit.ts";
 import { loadFilePreview } from "./filePreview.ts";
 import { mapCoursePerson, loadCoursePerson } from "./coursePeople.ts";
 import { completeModules, moduleExternalUrl } from "./courseModules.ts";
@@ -697,6 +697,7 @@ async function courseResources(
     discussions: discussions.filter((item: any) => !item.is_announcement),
     tabs: tabs.filter((tab: any) => !tab.hidden && safeLink(tab.html_url, canvasUrl)).sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0)),
   }, result);
+  checks.course = compareCanvasCourse(course, frontPage, result.course);
   for (let i = 0; i < fullModules.length; i++) compareCanvasCollections({ items: fullModules[i].items || [] }, result.modules[i]);
   if (Object.values(resourceStates).includes("error")) console.warn("canvas_read_partial", { sections: Object.entries(resourceStates).filter(([, status]) => status === "error").map(([name]) => name) });
   return { ...result, _sync: { checkedAt: new Date().toISOString(), source: "Canvas", sections: resourceStates,

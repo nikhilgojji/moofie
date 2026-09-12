@@ -1,5 +1,6 @@
 import { FilePreview, FileDownload, useFilePreview } from "./components/FilePreview";
-import { courseSectionStatus, mergeCourseResources, startCanvasAutoRefresh } from "./utils/canvasSync";
+import { courseSectionStatus, mergeCourseResources, startCanvasAutoRefresh, updateCanvasCoverage } from "./utils/canvasSync";
+import { startCourseCoverage } from "./utils/courseCoverage";
 import { CourseAvatar as CourseAuthorAvatar } from "./components/CourseAvatar";
 import { CoursePeoplePanel } from "./components/CoursePeoplePanel";
 import { clearCanvasReadCache } from "./canvasApi";
@@ -3161,6 +3162,19 @@ function GradebookApp() {
   const refreshFeedbackTimeoutRef = useRef(null);
   const pullStartRef = useRef(null);
   const pullDistanceRef = useRef(0);
+
+  // Audit the enrolled course catalog even when a user never opens those tabs.
+  const coverageCourses = JSON.stringify((data?.courses || []).map(({ id, name }) => ({ id, name })));
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    return startCourseCoverage({
+      courses: JSON.parse(coverageCourses),
+      readResources: id => loadCourseResources(id, { refresh: true }),
+      readPage: (id, url) => loadCoursePage(id, url, { refresh: true }),
+      onResources: (id, next) => setResourcesByCourse(previous => ({ ...previous, [id]: mergeCourseResources(previous[id], next) })),
+      report: updateCanvasCoverage,
+    });
+  }, [session?.user?.id, coverageCourses]);
 
   function openCourse(courseId) {
     writeNavigation({ ...closedContent, moofieView: "grades", moofieCourse: courseId });

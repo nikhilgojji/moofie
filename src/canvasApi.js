@@ -8,11 +8,11 @@ supabase?.auth.onAuthStateChange(event => {
   if (event === "SIGNED_OUT" || event === "SIGNED_IN") { clearCanvasReadCache(); resetCanvasSync(); }
 });
 
-async function readCourse(action, payload) {
+async function readCourse(action, payload, options) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Sign in to load your course.");
-  return courseReads.read(session.user.id, JSON.stringify([action, payload]), () => callCanvasFunction(action, payload));
+  return courseReads.read(session.user.id, JSON.stringify([action, payload]), () => callCanvasFunction(action, payload), options);
 }
 
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -72,16 +72,16 @@ export function loadCanvasDashboard() {
 }
 
 // Load navigation content for one Canvas course only when the user opens it.
-export function loadCourseResources(courseId) {
-  return readCourse("course_resources", { courseId, includePeople: false });
+export function loadCourseResources(courseId, options) {
+  return readCourse("course_resources", { courseId, includePeople: false }, options);
 }
 
 export function loadCoursePeople(courseId) {
   return readCourse("course_resources", { courseId, part: "people" });
 }
 
-export function loadCoursePage(courseId, pageUrl) {
-  return readCourse("course_page", { courseId, pageUrl });
+export function loadCoursePage(courseId, pageUrl, options) {
+  return readCourse("course_page", { courseId, pageUrl }, options);
 }
 
 export function loadCourseContent(courseId, kind, contentId) {

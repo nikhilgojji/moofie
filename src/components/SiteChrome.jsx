@@ -248,7 +248,7 @@ export function SignedInNav({
         </button>
       </nav>
       <div className="signed-in-nav-actions">
-        <SyncStatus checkedAt={data?._sync?.checkedAt} />
+        <SyncStatus checkedAt={data?._sync?.checkedAt} courses={data.courses} />
         <details
           className="notifications-menu"
           ref={notificationsMenuRef}

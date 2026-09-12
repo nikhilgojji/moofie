@@ -515,6 +515,9 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .canvas-sync-status > summary { cursor: pointer; padding: 8px; overflow-wrap: anywhere; }
 .canvas-sync-panel { position: absolute; z-index: 50; right: 0; width: min(340px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
 .canvas-sync-panel p { margin-block: 12px; }
+.canvas-sync-panel { max-height: min(70dvh, 640px); overflow-y: auto; }
+.canvas-coverage-list { padding-left: 18px; overflow-wrap: anywhere; }
+.canvas-coverage-list li + li { margin-top: 8px; }
 .canvas-sync-panel button, .course-sync-notice button, .spreadsheet-controls button, .spreadsheet-controls select { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text-strong); font: inherit; cursor: pointer; }
 .course-sync-summary, .course-sync-notice { grid-column: 1 / -1; font-size: 14px; color: var(--text); }
 .home-resource-grid[data-canvas-restricted] > section { display: none; }

@@ -6,7 +6,7 @@ import { stripTypeScriptTypes } from "node:module";
 import { courseContentSection } from "./courseHome.js";
 import { canvasLinkNavigation } from "./canvasLinks.js";
 import { completeModules, moduleExternalUrl } from "../../supabase/functions/canvas/courseModules.ts";
-import { compareCanvasCollections, resourceSection } from "../../supabase/functions/canvas/courseAudit.ts";
+import { compareCanvasCollections, compareCanvasCourse, resourceSection } from "../../supabase/functions/canvas/courseAudit.ts";
 
 test("all Canvas Home settings win over unrelated saved front-page and syllabus content", () => {
   const choices = { modules: "course-modules", wiki: "course-overview", assignments: "course-assignments", syllabus: "course-syllabus", feed: "course-activity" };
@@ -71,7 +71,7 @@ test("course resource mapping carries Modules Home, full content and all accessi
     return [];
   };
   const safeLink = (value, base) => { try { return new URL(value, base).href; } catch { return null; } };
-  const load = new Function("optionalCanvasRequest", "optionalCanvasList", "canvasList", "safeLink", "completeModules", "moduleExternalUrl", "mapCoursePerson", "compareCanvasCollections", "resourceSection", resourceCode + "\nreturn courseResources;")(request, list, list, safeLink, completeModules, moduleExternalUrl, mapCoursePerson, compareCanvasCollections, resourceSection);
+  const load = new Function("optionalCanvasRequest", "optionalCanvasList", "canvasList", "safeLink", "completeModules", "moduleExternalUrl", "mapCoursePerson", "compareCanvasCollections", "compareCanvasCourse", "resourceSection", resourceCode + "\nreturn courseResources;")(request, list, list, safeLink, completeModules, moduleExternalUrl, mapCoursePerson, compareCanvasCollections, compareCanvasCourse, resourceSection);
   const result = await load("https://catcourses.ucmerced.edu", "fixture-token", 39041);
   assert.equal(courseContentSection("course-overview", result.course), "course-modules");
   assert.equal(result.modules[0].items[0].title, "STEAMplug");

@@ -1,10 +1,14 @@
 const listeners = new Set();
-let snapshot = { records: {}, version: 0 };
+let snapshot = { records: {}, coverage: {}, version: 0 };
 let generation = 0;
 export const subscribeCanvasSync = listener => { listeners.add(listener); return () => listeners.delete(listener); };
 export const getCanvasSync = () => snapshot;
-function publish(records) { snapshot = { records, version: snapshot.version + 1 }; listeners.forEach(listener => listener()); }
-export function resetCanvasSync() { generation++; publish({}); }
+function publish(records) { snapshot = { ...snapshot, records, version: snapshot.version + 1 }; listeners.forEach(listener => listener()); }
+export function resetCanvasSync() { generation++; snapshot = { ...snapshot, coverage: {} }; publish({}); }
+export function updateCanvasCoverage(courseId, value) {
+  snapshot = { ...snapshot, coverage: { ...snapshot.coverage, [courseId]: value } };
+  publish(snapshot.records);
+}
 export function updateCanvasSync(key, value) {
   const records = { ...snapshot.records };
   const previous = records[key]; delete records[key];
@@ -71,7 +75,7 @@ export function startCanvasAutoRefresh(refresh, { target = window, doc = documen
   async function check(force = false) {
     if (running || doc.visibilityState === "hidden" || target.navigator?.onLine === false || !force && now() - last < interval) return;
     running = true; last = now();
-    try { await refresh(); } finally { running = false; }
+    try { await refresh(); } catch { /* Read failures are recorded by recoverCanvasRead; retry on the next cycle. */ } finally { running = false; }
   }
   const onVisible = () => { if (doc.visibilityState !== "hidden") check(); };
   const onOnline = () => check(true);
