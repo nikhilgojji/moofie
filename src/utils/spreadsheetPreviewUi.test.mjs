@@ -6,7 +6,7 @@ import { rolldown } from "rolldown";
 import { JSDOM } from "jsdom";
 import ExcelJS from "exceljs";
 import { readStyledWorkbook } from "./spreadsheetStyles.js";
-import { sheetPage } from "./spreadsheet.js";
+import { sheetPage, workbookSheets } from "./spreadsheet.js";
 
 test("the rendered spreadsheet uses source formatting and print headers instead of a generic data grid", async () => {
   const dom = new JSDOM('<div id="root"></div>');
@@ -19,12 +19,13 @@ test("the rendered spreadsheet uses source formatting and print headers instead 
   sheet.addRow(["Week", "Lecture topics"]); sheet.addRow([1, "Row and Column pictures"]);
   sheet.getCell("A1").style = { font: { bold: true, size: 11 }, alignment: { horizontal: "center", vertical: "middle" }, border: { bottom: { style: "thick" } } };
   sheet.getRow(2).height = 28;
+  book.addWorksheet("Exams").addRow(["Exam dates"]);
   const sourceBlob = new Blob([await book.xlsx.writeBuffer()]);
   let complete;
   const parsed = new Promise(resolve => { complete = resolve; });
   globalThis.Worker = class {
     async postMessage(data) {
-      try { const workbook = await readStyledWorkbook(data.bytes, data.fileName); this.onmessage?.({ data: { requestId: data.requestId, names: workbook.SheetNames, page: sheetPage(workbook) } }); }
+      try { if (data.bytes) this.workbook = await readStyledWorkbook(data.bytes, data.fileName); const workbook = this.workbook; this.onmessage?.({ data: { requestId: data.requestId, names: workbook.SheetNames, sheets: workbookSheets(workbook), page: sheetPage(workbook, data.sheetIndex, data.rowStart, data.colStart) } }); }
       finally { complete(); }
     }
     terminate() { this.onmessage = null; }
@@ -43,11 +44,20 @@ test("the rendered spreadsheet uses source formatting and print headers instead 
     assert.equal(first.style.textAlign, "center"); assert.equal(first.style.verticalAlign, "middle");
     assert.equal(document.querySelector("thead"), null);
     assert.equal(document.querySelectorAll("col").length, 2);
-    assert.doesNotMatch(document.querySelector(".spreadsheet-controls").textContent, /Previous rows|Next rows/);
+    assert.doesNotMatch(document.querySelector(".moofie-pdf-toolbar").textContent, /Previous rows|Next rows|Worksheet/);
+    assert.equal(document.querySelector("select"), null);
     const paper = document.querySelector(".spreadsheet-paper"), originalScale = paper.style.transform;
     await act(async () => document.querySelector('[aria-label="Zoom in"]').click());
     assert.notEqual(paper.style.transform, originalScale);
-    await act(async () => [...document.querySelectorAll("button")].find(button => button.textContent === "Fit to width").click());
+    await act(async () => document.querySelector('[title="Fit page width"]').click());
     assert.equal(paper.style.transform, originalScale);
+    await act(async () => document.querySelector('[aria-label="Rotate clockwise"]').click());
+    assert.match(paper.style.transform, /rotate\(90deg\)/);
+    assert.ok(document.querySelector('[aria-label="Enter fullscreen"]'));
+    await act(async () => document.querySelector('[aria-label="Next page"]').click());
+    assert.equal(document.querySelector('[aria-label="Page number"]').value, "2");
+    assert.match(document.querySelector("table").textContent, /Exam dates/);
+    await act(async () => document.querySelector('[aria-label="Previous page"]').click());
+    assert.match(document.querySelector("table").textContent, /Lecture topics/);
   } finally { await act(async () => root.unmount()); await bundle.close(); await unlink(fixture).catch(() => {}); dom.window.close(); }
 });

@@ -68,7 +68,8 @@ test("missing document sessions fall back to the downloaded workbook without dow
   };
   await act(async () => root.render(createElement(Viewer, { file: { id: 51, name: "Tentative 141 Schedule F2026.xlsx" } })));
   assert.match(document.querySelector("table").textContent, /Tentative 141 Schedule.*Week 1.*Integrals/);
-  assert.equal(document.querySelector("select").textContent, "Schedule");
+  assert.equal(document.querySelector('[aria-label="Page number"]').value, "1");
+  assert.equal(document.querySelector("select"), null);
   assert.doesNotMatch(document.body.textContent, /no preview available/);
   assert.equal(downloads, 1);
 });
@@ -83,6 +84,9 @@ test("an image with an XLSX name uses the original image for both Canvas MIME an
     await act(async () => root.render(createElement(Viewer, { file: { id, name: "Tentative 141 Schedule F2026.xlsx", contentType } })));
     const img = document.querySelector("img");
     assert.equal(img.alt, "Tentative 141 Schedule F2026.xlsx");
+    assert.equal(document.querySelector('[aria-label="Page number"]').value, "1");
+    assert.ok(document.querySelector('[aria-label="Rotate clockwise"]'));
+    assert.ok(document.querySelector('[aria-label="Enter fullscreen"]'));
     const response = await fetch(img.src);
     assert.equal(response.headers.get("content-type"), "image/png");
     assert.deepEqual(Buffer.from(await response.arrayBuffer()), png);
@@ -108,6 +112,9 @@ test("HTML is sandboxed; plain text is escaped; media has native playback contro
   await act(async () => root.render(createElement(FilePreview, { file: { name: "notes.txt" }, preview: { kind: "text", text: "<script>bad()</script>" } })));
   assert.equal(document.querySelector("script"), null);
   assert.match(document.querySelector("pre").textContent, /<script>/);
+  assert.ok(document.querySelector(".moofie-pdf-toolbar"));
+  await act(async () => document.querySelector('[aria-label="Enter fullscreen"]').click());
+  assert.match(document.querySelector('[role="status"]').textContent, /Fullscreen is unavailable/);
   for (const kind of ["audio", "video"]) {
     await act(async () => root.render(createElement(FilePreview, { file: { name: "lecture" }, preview: { kind, url: "blob:media" } })));
     assert.ok(document.querySelector(kind).controls);

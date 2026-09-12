@@ -1,3 +1,4 @@
+import { DocumentToolbar, useDocumentFullscreen } from "./components/DocumentToolbar";
 import { FilePreview, FileDownload, useFilePreview } from "./components/FilePreview";
 import { courseSectionStatus, mergeCourseResources, startCanvasAutoRefresh, updateCanvasCoverage } from "./utils/canvasSync";
 import { startCourseCoverage } from "./utils/courseCoverage";
@@ -751,6 +752,7 @@ function PdfPageCanvas({ pdfDocument, pageNumber, rotation, scale, setPageElemen
 
 function PdfPreview({ fileUrl, fileBlob, name }) {
   const stageRef = useRef(null);
+  const fullscreen = useDocumentFullscreen(stageRef);
   const pagesRef = useRef(null);
   const pageElementsRef = useRef([]);
   const scrollFrameRef = useRef(0);
@@ -760,7 +762,6 @@ function PdfPreview({ fileUrl, fileBlob, name }) {
   const [rotation, setRotation] = useState(0);
   const [autoFit, setAutoFit] = useState(true);
   const [previewError, setPreviewError] = useState("");
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
 
   useEffect(() => {
@@ -831,19 +832,11 @@ function PdfPreview({ fileUrl, fileBlob, name }) {
 
   useEffect(() => () => window.cancelAnimationFrame(scrollFrameRef.current), []);
 
-  useEffect(() => {
-    function updateFullscreen() {
-      setIsFullscreen(document.fullscreenElement === stageRef.current);
-    }
-    window.document.addEventListener("fullscreenchange", updateFullscreen);
-    return () => window.document.removeEventListener("fullscreenchange", updateFullscreen);
-  }, []);
-
   const pageCount = pdfDocument?.numPages || 0;
 
   function changeZoom(amount) {
     setAutoFit(false);
-    setScale((current) => Math.min(3, Math.max(0.5, current + amount)));
+    setScale((current) => Math.min(3, Math.max(0.25, current + amount)));
   }
 
   function goToPage(nextPage) {
@@ -870,57 +863,14 @@ function PdfPreview({ fileUrl, fileBlob, name }) {
     });
   }
 
-  async function toggleFullscreen() {
-    if (!stageRef.current) return;
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else await stageRef.current.requestFullscreen();
-  }
-
   return (
     <section className="moofie-pdf" ref={stageRef} aria-label={`${name} document`}>
-      <div className="moofie-pdf-toolbar">
-        <div className="moofie-pdf-page-controls">
-          <span>Page</span>
-          <button type="button" aria-label="Previous page" disabled={pageNumber <= 1} onClick={() => goToPage(pageNumber - 1)}>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>
-          </button>
-          <input
-            aria-label="Page number"
-            type="number"
-            min="1"
-            max={pageCount || 1}
-            value={pageNumber}
-            onChange={(event) => goToPage(Number(event.target.value) || 1)}
-          />
-          <button type="button" aria-label="Next page" disabled={!pageCount || pageNumber >= pageCount} onClick={() => goToPage(pageNumber + 1)}>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>
-          </button>
-          <span>of {pageCount || "—"}</span>
-        </div>
-        <div className="moofie-pdf-view-controls">
-          <button type="button" aria-label="Zoom out" disabled={scale <= 0.5} onClick={() => changeZoom(-0.15)}>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 12h12" /></svg>
-          </button>
-          <button className="moofie-pdf-zoom" type="button" title="Fit page width" onClick={() => setAutoFit(true)}>
-            {autoFit ? "Zoom" : `${Math.round(scale * 100)}%`}
-          </button>
-          <button type="button" aria-label="Zoom in" disabled={scale >= 3} onClick={() => changeZoom(0.15)}>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12" /></svg>
-          </button>
-          <button type="button" aria-label="Rotate clockwise" onClick={() => setRotation((value) => (value + 90) % 360)}>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" /></svg>
-          </button>
-        </div>
-        <div className="moofie-pdf-document-controls">
-          <button type="button" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={toggleFullscreen}>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" /></svg>
-          </button>
-          <a href={fileUrl} download={name} aria-label={`Download ${name}`}>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
-          </a>
-        </div>
-      </div>
+      <DocumentToolbar pageNumber={pageNumber} pageCount={pageCount} onPageChange={goToPage}
+        scale={scale} autoFit={autoFit} onZoom={changeZoom} onFit={() => setAutoFit(true)}
+        onRotate={() => setRotation(value => (value + 90) % 360)} fullscreen={fullscreen.fullscreen}
+        onFullscreen={fullscreen.toggle} downloadUrl={fileUrl} name={name} />
       <div className="moofie-pdf-pages" ref={pagesRef} onScroll={handlePagesScroll}>
+        {fullscreen.error && <p role="status">{fullscreen.error}</p>}
         {previewError ? <div className="moofie-pdf-error" role="alert"><p>{previewError}</p><button type="button" onClick={() => setRetryVersion(value => value + 1)}>Retry preview</button></div> : !pdfDocument && <ContentSkeleton label="Loading PDF" variant="document" />}
         {pdfDocument && Array.from({ length: pageCount }, (_, index) => (
           <PdfPageCanvas

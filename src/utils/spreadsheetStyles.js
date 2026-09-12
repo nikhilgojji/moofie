@@ -77,8 +77,9 @@ export async function readStyledWorkbook(bytes, fileName = "") {
   for (const worksheet of book.worksheets) {
     const sheet = result.Sheets[worksheet.name];
     if (!sheet) continue;
-    sheet["!layout"] = { header: printText(worksheet.headerFooter.differentFirst ? worksheet.headerFooter.firstHeader : worksheet.headerFooter.oddHeader, { sheetName: worksheet.name, fileName }),
-      footer: printText(worksheet.headerFooter.differentFirst ? worksheet.headerFooter.firstFooter : worksheet.headerFooter.oddFooter, { sheetName: worksheet.name, fileName }),
+    const headerFooter = worksheet.headerFooter || {};
+    sheet["!layout"] = { header: printText(headerFooter.differentFirst ? headerFooter.firstHeader : headerFooter.oddHeader, { sheetName: worksheet.name, fileName }),
+      footer: printText(headerFooter.differentFirst ? headerFooter.firstFooter : headerFooter.oddFooter, { sheetName: worksheet.name, fileName }),
       defaultRowHeight: (worksheet.properties.defaultRowHeight || 15) * 4 / 3,
       defaultColWidth: (worksheet.properties.defaultColWidth || 8.43) * 7 + 5 };
     sheet["!cols"] = (worksheet.columns || []).map(column => ({ wpx: (column.width || worksheet.properties.defaultColWidth || 8.43) * 7 + 5, hidden: column.hidden }));

@@ -1,5 +1,12 @@
 import { read, utils } from "xlsx";
 
+export function workbookSheets(workbook) {
+  return workbook.SheetNames.map(name => {
+    const range = utils.decode_range(workbook.Sheets[name]["!ref"] || "A1");
+    return { name, rows: range.e.r + 1, columns: range.e.c + 1 };
+  });
+}
+
 export function readWorkbook(bytes) {
   const signature = new Uint8Array(bytes, 0, Math.min(4, bytes.byteLength));
   if (!((signature[0] === 0x50 && signature[1] === 0x4b) || (signature[0] === 0xd0 && signature[1] === 0xcf))) {

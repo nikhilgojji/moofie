@@ -3,6 +3,7 @@ import { loadCourseFile, loadCourseFilePreview } from "../canvasApi";
 import { detectBinaryPreview, filePreviewKind } from "../utils/filePreview";
 import { ContentSkeleton } from "./ContentSkeleton";
 import { startCanvasAutoRefresh } from "../utils/canvasSync";
+import { StaticDocumentPreview } from "./StaticDocumentPreview";
 const SpreadsheetPreview = lazy(() => import("./SpreadsheetPreview"));
 
 export function useFilePreview(courseId, file, enabled = true) {
@@ -85,8 +86,7 @@ export function FilePreview({ preview, file, PdfPreview, courseId }) {
   if (preview.spreadsheet || frameError && /\.(xlsx?|xlsm|ods)$/i.test(file.name || "")) return <Suspense fallback={<ContentSkeleton label="Opening spreadsheet" variant="document" />}><SpreadsheetPreview key={file.id} courseId={courseId} file={file} sourceBlob={preview.blob} /></Suspense>;
   if (preview.error || frameError) return <div className="document-reader-message" role="alert"><p>{preview.error || "The document preview could not load."}</p><button type="button" onClick={() => { setFrameError(false); preview.retry(); }}>Retry preview</button></div>;
   if (preview.kind === "pdf") return <PdfPreview fileUrl={preview.url} fileBlob={preview.blob} name={file.name} />;
-  if (preview.kind === "image") return <div className="document-reader-image"><img src={preview.url} alt={file.name} /></div>;
-  if (preview.kind === "text") return <pre className="document-reader-text">{preview.text}</pre>;
+  if (preview.kind === "image" || preview.kind === "text") return <StaticDocumentPreview key={`${file.id}:${preview.url}`} preview={preview} file={file} />;
   if (preview.kind === "html") return <iframe className="document-reader-frame" src={preview.url} title={file.name} sandbox="" referrerPolicy="no-referrer" />;
   if (preview.kind === "video" || preview.kind === "audio") {
     const Media = preview.kind;
