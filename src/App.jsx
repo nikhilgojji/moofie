@@ -1734,7 +1734,6 @@ function HomeDashboard({
                   <ContentSkeleton label="Loading course content" />
                 ) : resources ? (
                   <div className="home-resource-grid" data-canvas-restricted={["restricted", "unavailable"].includes(sectionStatus) || undefined}>
-                    {resources._sync?.checkedAt && <div className="course-sync-summary">Checked against Canvas at {new Date(resources._sync.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}{resources._sync.partial ? " · Some sections could not refresh" : ""}</div>}
                     {sectionStatus && sectionStatus !== "current" && <div className="course-sync-notice" role="status"><p>{sectionStatus === "restricted" ? "Canvas does not currently allow your account to read this section." : sectionStatus === "unavailable" ? "Canvas did not return this section. Its availability may have changed." : "This section could not refresh. Previously loaded content may be out of date. Moofie will retry automatically."}</p><button type="button" onClick={() => window.dispatchEvent(new Event("moofie:refresh"))}>Check Canvas now</button></div>}
                     <section className="home-resource-section activity-section" id="course-activity" hidden={visibleCourseSection !== "course-activity"}>
                       <div className="home-resource-title"><h3>Recent Activity</h3></div>
