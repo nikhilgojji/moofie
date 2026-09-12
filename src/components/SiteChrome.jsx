@@ -1,6 +1,7 @@
 // Shared page chrome lives here so every screen uses the same navigation,
 // theme behavior, footer links, and account controls.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SyncStatus } from "./SyncStatus";
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -247,6 +248,7 @@ export function SignedInNav({
         </button>
       </nav>
       <div className="signed-in-nav-actions">
+        <SyncStatus checkedAt={data?._sync?.checkedAt} />
         <details
           className="notifications-menu"
           ref={notificationsMenuRef}

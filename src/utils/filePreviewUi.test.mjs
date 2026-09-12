@@ -4,6 +4,8 @@ import { writeFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { rolldown } from "rolldown";
 import { JSDOM } from "jsdom";
+import { utils, write } from "xlsx";
+import { readWorkbook, sheetPage } from "./spreadsheet.js";
 
 const dom = new JSDOM('<div id="root"></div>', { url: "https://moofie.example" });
 globalThis.window = dom.window;
@@ -22,7 +24,7 @@ const bundle = await rolldown({
     if (id === "\0preview-test-api") return "export const loadCourseFilePreview = (...args) => globalThis.previewRequest(...args); export const loadCourseFile = (...args) => globalThis.fileRequest(...args);";
   } }],
 });
-const generated = await bundle.generate({ format: "esm" });
+const generated = await bundle.generate({ format: "esm", codeSplitting: false });
 await writeFile(fixture, generated.output[0].code);
 await bundle.close();
 const { FilePreview, useFilePreview } = await import(fixture.href);
@@ -30,11 +32,11 @@ const root = createRoot(document.getElementById("root"));
 after(async () => { await act(async () => root.unmount()); dom.window.close(); await unlink(fixture); });
 function Viewer({ file }) {
   const preview = useFilePreview(39, file);
-  return createElement(FilePreview, { file, preview, PdfPreview: () => createElement("p", null, "PDF viewer") });
+  return createElement(FilePreview, { file, preview, courseId: 39, PdfPreview: () => createElement("p", null, "PDF viewer") });
 }
 const session = "https://canvadocs.instructure.com/1/sessions/test/view";
 
-test("Excel loads the embedded Canvas preview without downloading the workbook; retry creates a new session", async () => {
+test("Office files load the embedded Canvas preview; retry creates a new session", async () => {
   let attempts = 0;
   globalThis.fileRequest = () => assert.fail("Office preview should not download the workbook first");
   globalThis.previewRequest = async (courseId, id) => {
@@ -42,16 +44,31 @@ test("Excel loads the embedded Canvas preview without downloading the workbook; 
     if (++attempts === 1) throw Error("Session expired");
     return { previewUrl: session };
   };
-  await act(async () => root.render(createElement(Viewer, { file: { id: 12, name: "Schedule.xlsx" } })));
+  await act(async () => root.render(createElement(Viewer, { file: { id: 12, name: "Schedule.docx" } })));
   assert.match(document.querySelector('[role="alert"]').textContent, /Session expired/);
   await act(async () => document.querySelector("button").click());
   assert.equal(attempts, 2);
   const frame = document.querySelector("iframe");
   assert.equal(frame.src, session);
-  assert.equal(frame.title, "Schedule.xlsx");
+  assert.equal(frame.title, "Schedule.docx");
   assert.ok(!frame.sandbox?.contains("allow-top-navigation"));
   await act(async () => frame.dispatchEvent(new dom.window.Event("load")));
   assert.equal(document.querySelector('[role="status"]'), null);
+});
+
+test("the reported missing-preview regression automatically renders the actual Canvas workbook", async () => {
+  const workbook = utils.book_new();
+  utils.book_append_sheet(workbook, utils.aoa_to_sheet([["Tentative 141 Schedule"], ["Week 1", "Integrals"]]), "Schedule");
+  globalThis.previewRequest = async () => ({ previewUrl: null });
+  globalThis.fileRequest = async () => new Blob([write(workbook, { type: "array", bookType: "xlsx" })]);
+  globalThis.Worker = class {
+    postMessage(data) { if (data.bytes) this.book = readWorkbook(data.bytes); queueMicrotask(() => this.onmessage?.({ data: { requestId: data.requestId, names: this.book.SheetNames, page: sheetPage(this.book, data.sheetIndex, data.rowStart, data.colStart) } })); }
+    terminate() { this.onmessage = null; }
+  };
+  await act(async () => root.render(createElement(Viewer, { file: { id: 51, name: "Tentative 141 Schedule F2026.xlsx" } })));
+  assert.match(document.querySelector("table").textContent, /Tentative 141 Schedule.*Week 1.*Integrals/);
+  assert.equal(document.querySelector("select").textContent, "Schedule");
+  assert.doesNotMatch(document.body.textContent, /no preview available/);
 });
 
 test("switching files discards an unfinished old preview and never shows it for the new file", async () => {

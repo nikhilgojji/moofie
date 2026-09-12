@@ -2,6 +2,7 @@ import { ContentSkeleton } from "./ContentSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { loadCourseTool } from "../canvasApi";
 import { CourseToolIcon } from "./CourseToolIcon";
+import { startCanvasAutoRefresh } from "../utils/canvasSync";
 
 function PolicyDocument({ url, title }) {
   const [loading, setLoading] = useState(true);
@@ -14,6 +15,12 @@ function PolicyDocument({ url, title }) {
 export function CourseTool({ courseId, toolId, title, renderPdf }) {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState({ loading: true });
+  useEffect(() => {
+    const refresh = () => setAttempt(value => value + 1);
+    window.addEventListener("moofie:refresh", refresh);
+    const stop = state.error ? startCanvasAutoRefresh(refresh) : () => {};
+    return () => { stop(); window.removeEventListener("moofie:refresh", refresh); };
+  }, [state.error]);
   useEffect(() => {
     let active = true;
     setState({ loading: true });

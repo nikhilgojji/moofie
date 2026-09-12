@@ -1,3 +1,4 @@
+import { compareCanvasCollections, resourceSection } from "./courseAudit.ts";
 import { loadFilePreview } from "./filePreview.ts";
 import { mapCoursePerson, loadCoursePerson } from "./coursePeople.ts";
 import { completeModules, moduleExternalUrl } from "./courseModules.ts";
@@ -127,10 +128,16 @@ async function canvasRequest(canvasUrl: string, pathOrUrl: string, token: string
     throw new Error("Canvas returned an invalid pagination URL.");
   }
 
-  const response = await fetch(parsed, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    signal: AbortSignal.timeout(20_000),
-  });
+  let response: Response;
+  for (let attempt = 0; ; attempt++) {
+    response = await fetch(parsed, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (attempt >= 1 || ![429, 500, 502, 503, 504].includes(response.status)) break;
+    await response.body?.cancel();
+    await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 500));
+  }
   if (!response.ok) {
     if (response.status === 401) throw new Error("Canvas rejected this token.");
     throw new Error(`Canvas request failed (${response.status}).`);
@@ -186,12 +193,16 @@ async function optionalCanvasList(
   canvasUrl: string,
   path: string,
   token: string,
+  report?: (status: string) => void,
 ) {
   try {
-    return await canvasList(canvasUrl, path, token);
+    const result = await canvasList(canvasUrl, path, token);
+    report?.("current");
+    return result;
   } catch (error) {
     const message = errorMessage(error);
-    if (/Canvas request failed \((403|404)\)/.test(message)) return [];
+    if (/Canvas request failed \((403|404)\)/.test(message)) { report?.(message.includes("403") ? "restricted" : "unavailable"); return []; }
+    if (report && !/token|401/i.test(message)) { report("error"); return []; }
     throw error;
   }
 }
@@ -200,12 +211,16 @@ async function optionalCanvasRequest(
   canvasUrl: string,
   path: string,
   token: string,
+  report?: (status: string) => void,
 ) {
   try {
-    return (await canvasRequest(canvasUrl, path, token)).data;
+    const result = (await canvasRequest(canvasUrl, path, token)).data;
+    report?.("current");
+    return result;
   } catch (error) {
     const message = errorMessage(error);
-    if (/Canvas request failed \((403|404)\)/.test(message)) return null;
+    if (/Canvas request failed \((403|404)\)/.test(message)) { report?.(message.includes("403") ? "restricted" : "unavailable"); return null; }
+    if (report && !/token|401/i.test(message)) { report("error"); return null; }
     throw error;
   }
 }
@@ -414,6 +429,8 @@ async function dashboard(canvasUrl: string, token: string) {
           ),
         ),
       }));
+      compareCanvasCollections({ groups: rawGroups }, { groups });
+      for (let i = 0; i < rawGroups.length; i++) compareCanvasCollections({ assignments: rawGroups[i].assignments || [] }, { assignments: groups[i].assignments });
       const enrollment =
         course.enrollments?.find(
           (item: any) =>
@@ -457,7 +474,7 @@ async function dashboard(canvasUrl: string, token: string) {
       };
     }),
   );
-  return { profile: profile.data, courses };
+  return { profile: profile.data, courses, _sync: { source: "Canvas", checkedAt: new Date().toISOString() } };
 }
 
 async function courseResources(
@@ -466,6 +483,9 @@ async function courseResources(
   courseId: number,
   includePeople = true,
 ) {
+  const resourceStates: Record<string, string> = {};
+  const readList = (url: string, path: string, credential: string) => optionalCanvasList(url, path, credential, status => { resourceStates[resourceSection(path)] = status; });
+  const readObject = (url: string, path: string, credential: string) => optionalCanvasRequest(url, path, credential, status => { resourceStates[resourceSection(path)] = status; });
   const [
     course,
     frontPage,
@@ -482,71 +502,71 @@ async function courseResources(
     courseSettings,
     sections,
   ] = await Promise.all([
-    optionalCanvasRequest(
+    readObject(
       canvasUrl,
       `/api/v1/courses/${courseId}?include[]=syllabus_body&include[]=term`,
       token,
     ),
-    optionalCanvasRequest(
+    readObject(
       canvasUrl,
       `/api/v1/courses/${courseId}/front_page`,
       token,
     ),
-    optionalCanvasList(
+    readList(
       canvasUrl,
       `/api/v1/announcements?context_codes[]=course_${courseId}` +
         "&active_only=true&latest_only=false&per_page=100",
       token,
     ),
-    optionalCanvasList(
+    readList(
       canvasUrl,
       `/api/v1/courses/${courseId}/modules` +
         "?include[]=items&include[]=content_details&per_page=100",
       token,
     ),
-    optionalCanvasList(
+    readList(
       canvasUrl,
       `/api/v1/courses/${courseId}/files?sort=updated_at&order=desc&per_page=100`,
       token,
     ),
-    optionalCanvasList(
+    readList(
       canvasUrl,
       `/api/v1/courses/${courseId}/pages?published=true&sort=title&order=asc&per_page=100`,
       token,
     ),
-    optionalCanvasList(
+    readList(
       canvasUrl,
       `/api/v1/courses/${courseId}/tabs?include[]=course_subject_tabs&per_page=100`,
       token,
     ),
-    optionalCanvasList(
+    readList(
       canvasUrl,
       `/api/v1/courses/${courseId}/discussion_topics?only_announcements=false&per_page=100`,
       token,
     ),
-    optionalCanvasList(
+    readList(
       canvasUrl,
       `/api/v1/courses/${courseId}/quizzes?per_page=100`,
       token,
     ),
-    includePeople ? optionalCanvasList(
+    includePeople ? readList(
       canvasUrl,
       `/api/v1/courses/${courseId}/users` +
         "?include[]=enrollments&include[]=avatar_url&per_page=100",
       token,
     ) : Promise.resolve([]),
-    optionalCanvasList(canvasUrl, `/api/v1/courses/${courseId}/folders?per_page=100`, token),
-    optionalCanvasList(canvasUrl, `/api/v1/calendar_events?context_codes[]=course_${courseId}&type=event&all_events=true&per_page=100`, token),
-    optionalCanvasRequest(canvasUrl, `/api/v1/courses/${courseId}/settings`, token),
-    includePeople ? optionalCanvasList(canvasUrl, `/api/v1/courses/${courseId}/sections?per_page=100`, token) : Promise.resolve([]),
+    readList(canvasUrl, `/api/v1/courses/${courseId}/folders?per_page=100`, token),
+    readList(canvasUrl, `/api/v1/calendar_events?context_codes[]=course_${courseId}&type=event&all_events=true&per_page=100`, token),
+    readObject(canvasUrl, `/api/v1/courses/${courseId}/settings`, token),
+    includePeople ? readList(canvasUrl, `/api/v1/courses/${courseId}/sections?per_page=100`, token) : Promise.resolve([]),
   ]);
 
   if (!course) throw new Error("Canvas did not return this course. Please refresh to try again.");
   const [fullModules, activity] = await Promise.all([
-    completeModules(modules, moduleId => canvasList(canvasUrl, "/api/v1/courses/" + courseId + "/modules/" + moduleId + "/items?include[]=content_details&per_page=100", token)),
-    course.default_view === "feed" ? canvasList(canvasUrl, "/api/v1/courses/" + courseId + "/activity_stream?per_page=100", token) : Promise.resolve([]),
+    completeModules(modules, moduleId => canvasList(canvasUrl, "/api/v1/courses/" + courseId + "/modules/" + moduleId + "/items?include[]=content_details&per_page=100", token)).catch(error => { if (/token|401/i.test(errorMessage(error))) throw error; resourceStates.modules = "error"; return modules; }),
+    course.default_view === "feed" ? canvasList(canvasUrl, "/api/v1/courses/" + courseId + "/activity_stream?per_page=100", token).catch(error => { if (/token|401/i.test(errorMessage(error))) throw error; resourceStates.activity = "error"; return []; }) : Promise.resolve([]),
   ]);
-  return {
+  const result = {
     courseId,
     activity: activity.map((item: any) => ({ id: item.id, type: item.type || "Activity", title: item.title || "Course activity", message: item.message || "", updatedAt: item.updated_at || item.created_at || null, read: Boolean(item.read_state), assignmentId: item.assignment_id || item.assignment?.id || null, discussionId: item.discussion_topic_id || null, announcementId: item.announcement_id || null, htmlUrl: safeLink(item.html_url, canvasUrl) })),
     course: {
@@ -673,6 +693,15 @@ async function courseResources(
     people: includePeople ? people.map((person: any) => mapCoursePerson(person, sections, { ...course, id: courseId })) : null,
 
   };
+  const checks = compareCanvasCollections({ announcements, modules: fullModules, files, folders, pages, quizzes,
+    discussions: discussions.filter((item: any) => !item.is_announcement),
+    tabs: tabs.filter((tab: any) => !tab.hidden && safeLink(tab.html_url, canvasUrl)).sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0)),
+  }, result);
+  for (let i = 0; i < fullModules.length; i++) compareCanvasCollections({ items: fullModules[i].items || [] }, result.modules[i]);
+  if (Object.values(resourceStates).includes("error")) console.warn("canvas_read_partial", { sections: Object.entries(resourceStates).filter(([, status]) => status === "error").map(([name]) => name) });
+  return { ...result, _sync: { checkedAt: new Date().toISOString(), source: "Canvas", sections: resourceStates,
+    partial: Object.values(resourceStates).includes("error"), checks } };
+
 }
 
 async function coursePage(

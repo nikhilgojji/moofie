@@ -1,10 +1,11 @@
 import { supabase } from "./supabase";
 import { createRequestCache } from "./utils/requestCache";
+import { recoverCanvasRead, resetCanvasSync } from "./utils/canvasSync";
 
 const courseReads = createRequestCache();
 export function clearCanvasReadCache() { courseReads.clear(); }
 supabase?.auth.onAuthStateChange(event => {
-  if (event === "SIGNED_OUT" || event === "SIGNED_IN") clearCanvasReadCache();
+  if (event === "SIGNED_OUT" || event === "SIGNED_IN") { clearCanvasReadCache(); resetCanvasSync(); }
 });
 
 async function readCourse(action, payload) {
@@ -38,6 +39,10 @@ async function withTimeout(request) {
 // Send one authenticated command to the server. Canvas tokens never need to be
 // handled directly by the browser after the initial connection request.
 async function callCanvasFunction(action, payload = {}) {
+  return recoverCanvasRead(action, payload, () => invokeCanvasFunction(action, payload));
+}
+
+async function invokeCanvasFunction(action, payload = {}) {
   if (!supabase) throw new Error("Supabase is not configured.");
 
   const { data, error } = await withTimeout(
@@ -52,7 +57,9 @@ async function callCanvasFunction(action, payload = {}) {
     } catch {
       // A non-JSON response has no extra detail, so retain the SDK message.
     }
-    throw new Error(message || "Moofie could not reach the server.");
+    const failure = new Error(message || "Moofie could not reach the server.");
+    failure.status = error.context?.status;
+    throw failure;
   }
 
   if (data?.error) throw new Error(data.error);

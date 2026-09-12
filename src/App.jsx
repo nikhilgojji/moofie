@@ -1,4 +1,5 @@
 import { FilePreview, FileDownload, useFilePreview } from "./components/FilePreview";
+import { courseSectionStatus, mergeCourseResources, startCanvasAutoRefresh } from "./utils/canvasSync";
 import { CourseAvatar as CourseAuthorAvatar } from "./components/CourseAvatar";
 import { CoursePeoplePanel } from "./components/CoursePeoplePanel";
 import { clearCanvasReadCache } from "./canvasApi";
@@ -943,7 +944,7 @@ function SubmittedAttachment({ attachment, courseId }) {
   return <div className="submitted-attachment">
     <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? "Hide" : "View"} {attachment.name}</button>
     {open && <div className="assignment-submission-preview">
-      <FilePreview preview={preview} file={attachment} PdfPreview={PdfPreview} />
+      <FilePreview preview={preview} file={attachment} courseId={courseId} PdfPreview={PdfPreview} />
       <FileDownload courseId={courseId} file={attachment} preview={preview}>Download {attachment.name}</FileDownload>
     </div>}
   </div>;
@@ -954,6 +955,15 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
   const routeRef = useRef(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [pageError, setPageError] = useState("");
+  const [contentRevision, setContentRevision] = useState(0);
+  const requestedRevision = useRef(0);
+  useEffect(() => {
+    if (!viewer || viewer.type === "file") return;
+    const refresh = () => setContentRevision(value => value + 1);
+    const stop = startCanvasAutoRefresh(refresh);
+    window.addEventListener("moofie:refresh", refresh);
+    return () => { stop(); window.removeEventListener("moofie:refresh", refresh); };
+  }, [viewer?.courseId, viewer?.type, originalItem?.id]);
   const readerCloseRef = useRef(null);
   useEffect(() => {
     if (viewer?.type !== "file") return;
@@ -973,12 +983,14 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
   useEffect(() => {
     setPageLoading(false);
     setPageError("");
-    const pageRequest = viewer?.type === "page" && originalItem?.body == null && originalItem?.pageUrl;
-    const contentRequest = originalItem?.needsDetails && ["quiz", "discussion", "file"].includes(viewer?.type);
+    const force = requestedRevision.current !== contentRevision;
+    requestedRevision.current = contentRevision;
+    const pageRequest = viewer?.type === "page" && (originalItem?.body == null || force) && originalItem?.pageUrl;
+    const contentRequest = (originalItem?.needsDetails || force) && ["quiz", "discussion", "file"].includes(viewer?.type);
     if (!pageRequest && !contentRequest) return;
     let active = true;
     const entryId = readNavigation().moofieEntryId;
-    setPageLoading(true);
+    if (originalItem?.needsDetails || originalItem?.body == null) setPageLoading(true);
     (pageRequest ? loadCoursePage(viewer.courseId, originalItem.pageUrl) : loadCourseContent(viewer.courseId, viewer.type, originalItem.id))
       .then(page => {
         if (active && readNavigation().moofieEntryId === entryId) {
@@ -988,7 +1000,7 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
       .catch(requestError => { if (active) setPageError(requestError.message || "Moofie could not load this page."); })
       .finally(() => { if (active) setPageLoading(false); });
     return () => { active = false; };
-  }, [viewer?.courseId, viewer?.type, originalItem]);
+  }, [viewer?.courseId, viewer?.type, originalItem, contentRevision]);
   const [assignment, setAssignment] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
@@ -1001,14 +1013,16 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
   const filePreview = useFilePreview(viewer?.courseId, originalItem, viewer?.type === "file");
   const filePreviewLoading = filePreview.loading;
   const submissionPanelRef = useRef(null);
+  const assignmentIdentityRef = useRef("");
 
   useEffect(() => {
-    setAssignment(originalItem || null);
+    setAssignment(current => current?.id === originalItem?.id ? current : originalItem || null);
     setDetailsError("");
-    setSubmitError("");
-    setSubmitSuccess("");
-    setSubmissionFile(null);
-    setIsDraggingFile(false);
+    const identity = `${viewer?.courseId}:${originalItem?.id}`;
+    if (assignmentIdentityRef.current !== identity) {
+      assignmentIdentityRef.current = identity;
+      setSubmitError(""); setSubmitSuccess(""); setSubmissionFile(null); setIsDraggingFile(false);
+    }
     if (viewer?.type !== "assignment" || !viewer.courseId || !originalItem?.id) return;
 
     let active = true;
@@ -1032,7 +1046,7 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
     return () => {
       active = false;
     };
-  }, [originalItem, viewer?.courseId, viewer?.type]);
+  }, [originalItem, viewer?.courseId, viewer?.type, contentRevision]);
 
   useEffect(() => {
     if (!viewer || pageLoading || detailsLoading || filePreviewLoading) return;
@@ -1199,7 +1213,7 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
           </div>
         </header>
         <div className="document-reader-content">
-          {pageError ? <div className="document-reader-message" role="alert">{pageError}</div> : <FilePreview preview={filePreview} file={item} PdfPreview={PdfPreview} />}
+          {pageError ? <div className="document-reader-message" role="alert">{pageError}</div> : <FilePreview preview={filePreview} file={item} courseId={viewer.courseId} PdfPreview={PdfPreview} />}
         </div>
         <footer className="document-reader-footer"><div><button type="button" disabled={!previousFile} onClick={() => openFile(previousFile)} title={previousFile?.name}>← Previous</button><button type="button" disabled={!nextFile} onClick={() => openFile(nextFile)} title={nextFile?.name}>Next →</button></div><button type="button" onClick={close}>Close</button></footer>
       </section>, document.body,
@@ -1252,9 +1266,10 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
         </header>
 
         <div className="course-viewer-body">
+          {pageError && !originalItem?.needsDetails && (viewer?.type !== "page" || originalItem?.body != null) && <p className="course-sync-notice" role="status">This content could not refresh. Showing the last successful load. <button type="button" onClick={() => setContentRevision(value => value + 1)}>Check Canvas now</button></p>}
           {loading || pageLoading ? (
             <ContentSkeleton label="Loading course content…" variant="list" />
-          ) : error || pageError ? (
+          ) : error || pageError && (originalItem?.needsDetails || viewer?.type === "page" && originalItem?.body == null) ? (
             <div className="home-resource-error">{error || pageError}</div>
           ) : viewer?.type === "person" ? (
             <CoursePerson key={`${viewer.courseId}:${item.id}`} courseId={viewer.courseId} person={item} availableCourses={chrome?.data?.courses} />
@@ -1446,6 +1461,7 @@ function HomeDashboard({
     : null;
 
   const visibleCourseSection = courseContentSection(activeCourseSection, resources?.course);
+  const sectionStatus = courseSectionStatus(resources, visibleCourseSection);
 
   useEffect(() => {
     if (
@@ -1470,32 +1486,24 @@ function HomeDashboard({
   }
 
   useEffect(() => {
-    if (!selectedCourseId || resourcesByCourse[selectedCourseId]) return;
-    let active = true;
-    setLoadingCourseId(selectedCourseId);
-    setResourceError("");
-    loadCourseResources(selectedCourseId)
-      .then((nextResources) => {
-        if (!active) return;
-        setResourcesByCourse((current) => ({
-          ...current,
-          [selectedCourseId]: nextResources,
-        }));
-      })
-      .catch((error) => {
-        if (active) {
-          setResourceError(
-            error.message || "Moofie could not load this course right now.",
-          );
-        }
-      })
-      .finally(() => {
-        if (active) setLoadingCourseId(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [resourcesByCourse, selectedCourseId]);
+    if (!selectedCourseId) return;
+    let active = true, running = false;
+    async function refreshCourse() {
+      if (running) return;
+      running = true;
+      setLoadingCourseId(selectedCourseId); setResourceError("");
+      try {
+        const next = await loadCourseResources(selectedCourseId);
+        if (active) setResourcesByCourse(current => ({ ...current, [selectedCourseId]: mergeCourseResources(current[selectedCourseId], next) }));
+      } catch (error) { if (active) setResourceError(error.message || "This course could not refresh. Previously loaded data is still shown."); }
+      finally { running = false; if (active) setLoadingCourseId(null); }
+    }
+    refreshCourse();
+    const stop = startCanvasAutoRefresh(refreshCourse);
+    const manual = () => { clearCanvasReadCache(); refreshCourse(); };
+    window.addEventListener("moofie:refresh", manual);
+    return () => { active = false; stop(); window.removeEventListener("moofie:refresh", manual); };
+  }, [selectedCourseId]);
 
   function openViewer(type, label, item, options = {}) {
     setViewer({
@@ -1769,12 +1777,14 @@ function HomeDashboard({
                   )}
                 </aside>
 
-                {resourceError && <div className="home-resource-error">{resourceError}</div>}
+                {resourceError && <div className="home-resource-error" role="status">{resourceError} <button type="button" onClick={() => window.dispatchEvent(new Event("moofie:refresh"))}>Check Canvas now</button></div>}
 
                 {!resources && loadingCourseId === selectedCourse.id ? (
                   <ContentSkeleton label="Loading course content" />
                 ) : resources ? (
-                  <div className="home-resource-grid">
+                  <div className="home-resource-grid" data-canvas-restricted={["restricted", "unavailable"].includes(sectionStatus) || undefined}>
+                    {resources._sync?.checkedAt && <div className="course-sync-summary">Checked against Canvas at {new Date(resources._sync.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}{resources._sync.partial ? " · Some sections could not refresh" : ""}</div>}
+                    {sectionStatus && sectionStatus !== "current" && <div className="course-sync-notice" role="status"><p>{sectionStatus === "restricted" ? "Canvas does not currently allow your account to read this section." : sectionStatus === "unavailable" ? "Canvas did not return this section. Its availability may have changed." : "This section could not refresh. Previously loaded content may be out of date. Moofie will retry automatically."}</p><button type="button" onClick={() => window.dispatchEvent(new Event("moofie:refresh"))}>Check Canvas now</button></div>}
                     <section className="home-resource-section activity-section" id="course-activity" hidden={visibleCourseSection !== "course-activity"}>
                       <div className="home-resource-title"><h3>Recent Activity</h3></div>
                       <div className="home-resource-list">{resources.activity?.length ? resources.activity.map(item => <ResourceRow key={item.id} onClick={() => openActivity(item)}>
@@ -3135,6 +3145,7 @@ function GradebookApp() {
   const [authReady, setAuthReady] = useState(false);
   const [data, setData] = useState(null);
   const [restoring, setRestoring] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useHistoryState("moofieCourse", null);
   const [activeView, setActiveView] = useHistoryState("moofieView", "home");
   useNavigationScroll();
@@ -3174,7 +3185,6 @@ function GradebookApp() {
 
     if (showFeedback) {
       clearCanvasReadCache();
-      setResourcesByCourse({});
       window.clearTimeout(refreshFeedbackTimeoutRef.current);
       refreshFeedbackActiveRef.current = true;
       setRefreshFeedback({ phase: "refreshing", distance: 88 });
@@ -3188,9 +3198,11 @@ function GradebookApp() {
             dashboard?.connected === false ? null : dashboard,
           );
           setData(nextData);
+          setDashboardError("");
           writeDashboardCache(userId, nextData);
           return true;
-        } catch {
+        } catch (error) {
+          setDashboardError(error.message || "Canvas could not be reached. Moofie will retry automatically.");
           return false;
         } finally {
           refreshRequestRef.current = null;
@@ -3215,6 +3227,14 @@ function GradebookApp() {
 
     return success;
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const stop = startCanvasAutoRefresh(() => refreshDashboard());
+    const manual = () => refreshDashboard(true);
+    window.addEventListener("moofie:refresh", manual);
+    return () => { stop(); window.removeEventListener("moofie:refresh", manual); };
+  }, [session?.user?.id, refreshDashboard]);
 
   useEffect(
     () => () => window.clearTimeout(refreshFeedbackTimeoutRef.current),
@@ -3412,6 +3432,7 @@ function GradebookApp() {
 
   if (!authReady || (restoring && !data)) return <AppLoading />;
   if (!session) return <AuthScreen />;
+  if (!data && dashboardError) return <main className="document-reader-message" role="alert"><h1>Canvas could not load yet</h1><p>{dashboardError}</p><p>Your connection has not been removed. Moofie will retry automatically.</p><button type="button" onClick={() => refreshDashboard()}>Check Canvas now</button></main>;
 
   if (!data) {
     return withAccountDialog(

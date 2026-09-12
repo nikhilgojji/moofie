@@ -44,6 +44,16 @@ test("locked and hidden files cannot launch a preview", async () => {
   }
 });
 
+test("missing API preview metadata recovers through the authenticated Canvas file view", async () => {
+  const paths = [];
+  const result = await loadFilePreview(origin, "token", 12, async path => {
+    paths.push(path);
+    return path.includes(".json") ? { attachment: { canvadoc_session_url: signed } } : { id: 12 };
+  }, async () => new Response(null, { status: 302, headers: { Location: session } }));
+  assert.deepEqual(paths, ["/api/v1/files/12?include[]=preview_url", "/files/12.json"]);
+  assert.equal(result.previewUrl, session);
+});
+
 test("expired sessions, login redirects, and unsafe preview destinations fail without exposing a link", async () => {
   await assert.rejects(loadFilePreview(origin, "token", 12, async () => ({ canvadoc_session_url: signed }), async () => new Response("expired", { status: 403 })), /retry/);
   for (const destination of [origin + "/login", "https://evil.example/1/sessions/x/view", "https://canvadocs.instructure.com.evil.example/1/sessions/x/view", "http://canvadocs.instructure.com/1/sessions/x/view", session + "?access_token=secret"]) {

@@ -7,9 +7,22 @@ export async function loadFilePreview(
   request: (path: string) => Promise<any>,
   fetcher: typeof fetch = fetch,
 ) {
-  const file = await request(`/api/v1/files/${fileId}?include[]=preview_url`);
+  let file = await request(`/api/v1/files/${fileId}?include[]=preview_url`);
   if (file.locked_for_user || file.hidden_for_user) {
     throw new Error("This file is currently locked in Canvas.");
+  }
+  if (!file.canvadoc_session_url && !file.preview_url) {
+    // Canvas's Files screen can provide richer preview metadata than the API.
+    // This endpoint supports bearer authentication; no browser cookies required.
+    try {
+      const page = await request(`/files/${fileId}.json`);
+      const attachment = page?.attachment;
+      if (attachment?.locked_for_user || attachment?.hidden_for_user) throw new Error("This file is currently locked in Canvas.");
+      if (attachment) file = { ...file, ...attachment };
+    } catch (error) {
+      if (/locked|token|401|403/i.test(String((error as Error).message))) throw error;
+      // The client can render the original spreadsheet if metadata is incomplete.
+    }
   }
   const signedUrl = file.canvadoc_session_url || file.preview_url;
   if (!signedUrl) return { previewUrl: null };

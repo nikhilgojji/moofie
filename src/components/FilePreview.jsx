@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { loadCourseFile, loadCourseFilePreview } from "../canvasApi";
 import { filePreviewKind } from "../utils/filePreview";
 import { ContentSkeleton } from "./ContentSkeleton";
+import { startCanvasAutoRefresh } from "../utils/canvasSync";
+const SpreadsheetPreview = lazy(() => import("./SpreadsheetPreview"));
 
 export function useFilePreview(courseId, file, enabled = true) {
   const [state, setState] = useState({});
@@ -16,7 +18,11 @@ export function useFilePreview(courseId, file, enabled = true) {
     async function load() {
       if (file.locked) throw new Error("This file is currently locked in Canvas.");
       if (kind === "document") {
-        const result = await loadCourseFilePreview(courseId, file.id);
+        const spreadsheet = /\.(xlsx?|xlsm|ods)$/i.test(file.name || "");
+        let result;
+        try { result = await loadCourseFilePreview(courseId, file.id); }
+        catch (error) { if (!spreadsheet) throw error; }
+        if (!result?.previewUrl && spreadsheet) return { spreadsheet: true };
         return { documentUrl: result.previewUrl };
       }
       const mime = file.contentType && file.contentType !== "application/octet-stream" ? file.contentType :
@@ -36,6 +42,13 @@ export function useFilePreview(courseId, file, enabled = true) {
   }, [key, courseId, file?.id, file?.contentType, file?.locked, kind]);
   // Do not show the previous file during navigation or an unfinished metadata request.
   const current = state.key === key ? state : { loading: Boolean(enabled) };
+  useEffect(() => {
+    if (!enabled) return;
+    const retry = () => setRevision(value => value + 1);
+    window.addEventListener("moofie:refresh", retry);
+    const stop = current.error ? startCanvasAutoRefresh(retry) : () => {};
+    return () => { stop(); window.removeEventListener("moofie:refresh", retry); };
+  }, [enabled, current.error]);
   return { ...current, kind, retry: () => setRevision(value => value + 1) };
 }
 
@@ -60,11 +73,12 @@ export function FileDownload({ courseId, file, preview, children, ...props }) {
   return <><button type="button" {...props} disabled={busy || file.locked} onClick={download} aria-busy={busy}>{children}</button>{error && <span role="alert">{error}</span>}</>;
 }
 
-export function FilePreview({ preview, file, PdfPreview }) {
+export function FilePreview({ preview, file, PdfPreview, courseId }) {
   const [frameLoaded, setFrameLoaded] = useState(false);
   const [frameError, setFrameError] = useState(false);
   useEffect(() => { setFrameLoaded(false); setFrameError(false); }, [preview.documentUrl]);
   if (preview.loading) return <ContentSkeleton label="Opening document" variant="document" />;
+  if (preview.spreadsheet || frameError && /\.(xlsx?|xlsm|ods)$/i.test(file.name || "")) return <Suspense fallback={<ContentSkeleton label="Opening spreadsheet" variant="document" />}><SpreadsheetPreview key={file.id} courseId={courseId} file={file} /></Suspense>;
   if (preview.error || frameError) return <div className="document-reader-message" role="alert"><p>{preview.error || "The document preview could not load."}</p><button type="button" onClick={() => { setFrameError(false); preview.retry(); }}>Retry preview</button></div>;
   if (preview.kind === "pdf") return <PdfPreview fileUrl={preview.url} fileBlob={preview.blob} name={file.name} />;
   if (preview.kind === "image") return <div className="document-reader-image"><img src={preview.url} alt={file.name} /></div>;
@@ -81,5 +95,5 @@ export function FilePreview({ preview, file, PdfPreview }) {
       referrerPolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-downloads" allow="fullscreen"
       onLoad={() => setFrameLoaded(true)} onError={() => setFrameError(true)} />
   </div>;
-  return <div className="document-reader-message"><p>Canvas has no preview available for this file. You can download it using the download button.</p></div>;
+  return <div className="document-reader-message"><p>Moofie could not obtain a preview for this file yet. You can retry or download the original file.</p><button type="button" onClick={preview.retry}>Retry preview</button></div>;
 }

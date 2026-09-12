@@ -511,3 +511,40 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .document-reader-media { min-height: 100%; display: grid; place-items: center; padding: 24px; }
 .document-reader-media video { max-width: 100%; max-height: 75vh; }
 .document-reader-media audio { width: min(100%, 640px); }
+.canvas-sync-status { position: relative; font-size: 13px; color: var(--text); max-width: 260px; }
+.canvas-sync-status > summary { cursor: pointer; padding: 8px; overflow-wrap: anywhere; }
+.canvas-sync-panel { position: absolute; z-index: 50; right: 0; width: min(340px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.canvas-sync-panel p { margin-block: 12px; }
+.canvas-sync-panel button, .course-sync-notice button, .spreadsheet-controls button, .spreadsheet-controls select { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text-strong); font: inherit; cursor: pointer; }
+.course-sync-summary, .course-sync-notice { grid-column: 1 / -1; font-size: 14px; color: var(--text); }
+.home-resource-grid[data-canvas-restricted] > section { display: none; }
+.spreadsheet-preview { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.spreadsheet-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.spreadsheet-controls label { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.spreadsheet-controls select { max-width: min(50vw, 320px); }
+.spreadsheet-controls button:disabled { opacity: .5; cursor: default; }
+.spreadsheet-scroll { flex: 1; overflow: auto; min-height: 240px; }
+.spreadsheet-scroll table { border-collapse: separate; border-spacing: 0; color: #171717; background: #fff; font-size: 14px; min-width: 100%; }
+.spreadsheet-scroll td, .spreadsheet-scroll th { padding: 9px 12px; border-right: 1px solid #d6d6d6; border-bottom: 1px solid #d6d6d6; white-space: pre-wrap; min-width: 100px; max-width: 500px; overflow-wrap: anywhere; vertical-align: top; }
+.spreadsheet-scroll th { min-width: 42px; background: #f0f0ef; font-weight: 500; }
+.spreadsheet-scroll thead th { position: sticky; top: 0; z-index: 1; }
+.assignment-submission-preview .spreadsheet-preview { height: 70vh; }
+@media (max-width: 700px) {
+  .signed-in-nav-actions { gap: 8px; flex-wrap: wrap; }
+  .canvas-sync-status { max-width: 160px; font-size: 12px; }
+  .canvas-sync-status > summary { min-height: 44px; display: flex; align-items: center; }
+  .canvas-sync-panel { position: fixed; top: 76px; right: 16px; }
+  .document-reader { height: 100dvh; }
+  .document-reader-header { gap: 8px; padding: 10px 12px; }
+  .document-reader-header h1 { min-width: 0; overflow-wrap: anywhere; font-size: 16px; }
+  .document-reader-actions { flex-shrink: 0; gap: 4px; }
+  .document-reader-actions button, .document-reader-actions summary, .document-reader-footer button { min-width: 44px; min-height: 44px; }
+  .document-reader-footer { gap: 8px; padding: 8px 12px; }
+  .spreadsheet-controls { padding: 10px; gap: 8px; }
+  .spreadsheet-controls label { width: 100%; }
+  .spreadsheet-controls select { flex: 1; max-width: 100%; font-size: 16px; }
+  .spreadsheet-controls button { min-height: 44px; }
+  .home-course-content, .home-resource-grid, .course-content-layout, .grades-content, .details-content { min-width: 0; }
+  .native-course-html, .syllabus-summary, .people-table-wrap { max-width: 100%; overflow-x: auto; }
+  .home-course-navigation button, .course-navigation button { min-height: 44px; white-space: normal; }
+}
