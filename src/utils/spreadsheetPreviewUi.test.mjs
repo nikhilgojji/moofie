@@ -34,7 +34,7 @@ test("the rendered spreadsheet uses source formatting and print headers instead 
   const bundle = await rolldown({ input: fileURLToPath(new URL("../components/SpreadsheetPreview.jsx", import.meta.url)), external: id => /^react(?:\/|$)/.test(id), transform: { jsx: "react-jsx" }, plugins: [{ name: "no-network", resolveId(id) { if (id.endsWith("/canvasApi")) return "\0no-network"; }, load(id) { if (id === "\0no-network") return 'export function loadCourseFile() { throw Error("Must reuse the original file"); }'; } }] });
   const root = createRoot(document.getElementById("root"));
   try {
-    const built = await bundle.generate({ format: "esm" }); await writeFile(fixture, built.output[0].code);
+    const built = await bundle.generate({ format: "esm", codeSplitting: false }); await writeFile(fixture, built.output[0].code);
     const { default: Preview } = await import(fixture.href);
     await act(async () => root.render(createElement(Preview, { file: { id: 1, name: "schedule.xlsx" }, courseId: 1, sourceBlob })));
     await act(async () => { await parsed; });
@@ -59,5 +59,14 @@ test("the rendered spreadsheet uses source formatting and print headers instead 
     assert.match(document.querySelector("table").textContent, /Exam dates/);
     await act(async () => document.querySelector('[aria-label="Previous page"]').click());
     assert.match(document.querySelector("table").textContent, /Lecture topics/);
+    // Exercise the visible regression: workers may be blocked or fail to load.
+    globalThis.Worker = class { constructor() { throw Error("Worker could not start"); } };
+    await act(async () => root.render(createElement(Preview, { file: { id: 2, name: "schedule.xlsx" }, courseId: 1, sourceBlob })));
+    for (let attempt = 0; attempt < 100 && !document.querySelector("table"); attempt++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)); });
+    assert.ok(document.querySelector("table"), document.body.textContent);
+    assert.match(document.querySelector("table").textContent, /Lecture topics/);
+    assert.equal(document.querySelector("td").style.fontWeight, "700");
+    assert.ok(document.querySelector(".moofie-pdf-toolbar"));
+    assert.equal(document.querySelector('[role="alert"]'), null);
   } finally { await act(async () => root.unmount()); await bundle.close(); await unlink(fixture).catch(() => {}); dom.window.close(); }
 });

@@ -1,6 +1,7 @@
 import { sheetPage, workbookSheets } from "./spreadsheet";
 import { readStyledWorkbook } from "./spreadsheetStyles";
 let workbook;
+self.postMessage({ ready: true });
 self.onmessage = async ({ data }) => {
   try {
     if (data.bytes) workbook = await readStyledWorkbook(data.bytes, data.fileName);

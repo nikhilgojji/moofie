@@ -1,3 +1,4 @@
+import { createSpreadsheetReader } from "../utils/spreadsheetReader";
 import { useEffect, useRef, useState } from "react";
 import { loadCourseFile } from "../canvasApi";
 import { ContentSkeleton } from "./ContentSkeleton";
@@ -15,7 +16,6 @@ export default function SpreadsheetPreview({ courseId, file, sourceBlob }) {
   const stageRef = useRef(null);
   const fullscreen = useDocumentFullscreen(stageRef);
   const workerRef = useRef(null);
-  const requestRef = useRef(0);
   const scrollRef = useRef(null);
   const paperRef = useRef(null);
   const [zoom, setZoom] = useState("fit");
@@ -31,31 +31,21 @@ export default function SpreadsheetPreview({ courseId, file, sourceBlob }) {
     return () => observer.disconnect();
   }, [result]);
   useEffect(() => {
-    let active = true;
-    let worker;
-    try { worker = new Worker(new URL("../utils/spreadsheet.worker.js", import.meta.url), { type: "module" }); }
-    catch { setError("The spreadsheet reader could not start in this browser. Retry or download the original file."); setLoading(false); return; }
-    workerRef.current = worker;
     setResult(null); setError(""); setLoading(true); setSheetIndex(0); setPageNumber(1); setRotation(0); setZoom("fit");
-    const timer = setTimeout(() => { worker.terminate(); if (active) { setError("This workbook took too long to open. Retry or download the original file."); setLoading(false); } }, 60_000);
-    worker.onmessage = ({ data }) => {
-      if (!active || data.requestId !== requestRef.current) return;
-      clearTimeout(timer); setLoading(false);
-      if (data.error) setError(data.error); else { setResult(data); setError(""); }
-    };
-    worker.onerror = () => { clearTimeout(timer); if (active) { setError("The spreadsheet reader could not start. Please retry."); setLoading(false); } };
-    (sourceBlob ? Promise.resolve(sourceBlob) : loadCourseFile(courseId, file.id, file.contentType)).then(async blob => {
-      if (blob.size > 25 * 1024 * 1024) throw new Error("This workbook exceeds the 25 MB preview limit. Download the original file to view it.");
-      const bytes = await blob.arrayBuffer();
-      if (active) worker.postMessage({ bytes, fileName: file.name, requestId: ++requestRef.current }, [bytes]);
-    }).catch(failure => { clearTimeout(timer); if (active) { setError(failure.message); setLoading(false); } });
-    return () => { active = false; clearTimeout(timer); worker.terminate(); };
-  }, [courseId, file.id, file.contentType, sourceBlob, revision]);
+    const reader = createSpreadsheetReader({
+      workerFactory: () => new Worker(new URL("../utils/spreadsheet.worker.js", import.meta.url), { type: "module" }),
+      onResult: data => { setResult(data); setLoading(false); setError(""); },
+      onError: message => { setError(message); setLoading(false); },
+    });
+    workerRef.current = reader;
+    reader.open(sourceBlob ? Promise.resolve(sourceBlob) : loadCourseFile(courseId, file.id, file.contentType), file.name);
+    return () => reader.dispose();
+  }, [courseId, file.id, file.name, file.contentType, sourceBlob, revision]);
   function navigate(number) {
     const location = spreadsheetPageLocation(result.sheets || [{ rows: result.page.rowCount, columns: result.page.colCount }], number);
     setSheetIndex(location.sheetIndex); setPageNumber(location.number); setLoading(true);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-    workerRef.current.postMessage({ sheetIndex: location.sheetIndex, rowStart: location.rowStart, colStart: location.colStart, requestId: ++requestRef.current });
+    workerRef.current.navigate({ sheetIndex: location.sheetIndex, rowStart: location.rowStart, colStart: location.colStart });
   }
   if (error) return <div className="document-reader-message" role="alert"><p>{error}</p><button type="button" onClick={() => setRevision(v => v + 1)}>Retry preview</button></div>;
   if (!result) return <ContentSkeleton label="Opening spreadsheet from Canvas" variant="document" />;
