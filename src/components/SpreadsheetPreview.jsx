@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadCourseFile } from "../canvasApi";
 import { ContentSkeleton } from "./ContentSkeleton";
 
-export default function SpreadsheetPreview({ courseId, file }) {
+export default function SpreadsheetPreview({ courseId, file, sourceBlob }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -24,13 +24,13 @@ export default function SpreadsheetPreview({ courseId, file }) {
       if (data.error) setError(data.error); else { setResult(data); setError(""); }
     };
     worker.onerror = () => { clearTimeout(timer); if (active) { setError("The spreadsheet reader could not start. Please retry."); setLoading(false); } };
-    loadCourseFile(courseId, file.id, file.contentType).then(async blob => {
+    (sourceBlob ? Promise.resolve(sourceBlob) : loadCourseFile(courseId, file.id, file.contentType)).then(async blob => {
       if (blob.size > 25 * 1024 * 1024) throw new Error("This workbook exceeds the 25 MB preview limit. Download the original file to view it.");
       const bytes = await blob.arrayBuffer();
       if (active) worker.postMessage({ bytes, requestId: ++requestRef.current }, [bytes]);
     }).catch(failure => { clearTimeout(timer); if (active) { setError(failure.message); setLoading(false); } });
     return () => { active = false; clearTimeout(timer); worker.terminate(); };
-  }, [courseId, file.id, file.contentType, revision]);
+  }, [courseId, file.id, file.contentType, sourceBlob, revision]);
   function navigate(sheet, rowStart = 0, colStart = 0) {
     setSheetIndex(sheet); setLoading(true);
     workerRef.current.postMessage({ sheetIndex: sheet, rowStart, colStart, requestId: ++requestRef.current });

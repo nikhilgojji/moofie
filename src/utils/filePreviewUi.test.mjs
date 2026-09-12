@@ -56,11 +56,12 @@ test("Office files load the embedded Canvas preview; retry creates a new session
   assert.equal(document.querySelector('[role="status"]'), null);
 });
 
-test("the reported missing-preview regression automatically renders the actual Canvas workbook", async () => {
+test("missing document sessions fall back to the downloaded workbook without downloading it twice", async () => {
   const workbook = utils.book_new();
   utils.book_append_sheet(workbook, utils.aoa_to_sheet([["Tentative 141 Schedule"], ["Week 1", "Integrals"]]), "Schedule");
   globalThis.previewRequest = async () => ({ previewUrl: null });
-  globalThis.fileRequest = async () => new Blob([write(workbook, { type: "array", bookType: "xlsx" })]);
+  let downloads = 0;
+  globalThis.fileRequest = async () => { downloads++; return new Blob([write(workbook, { type: "array", bookType: "xlsx" })]); };
   globalThis.Worker = class {
     postMessage(data) { if (data.bytes) this.book = readWorkbook(data.bytes); queueMicrotask(() => this.onmessage?.({ data: { requestId: data.requestId, names: this.book.SheetNames, page: sheetPage(this.book, data.sheetIndex, data.rowStart, data.colStart) } })); }
     terminate() { this.onmessage = null; }
@@ -69,6 +70,25 @@ test("the reported missing-preview regression automatically renders the actual C
   assert.match(document.querySelector("table").textContent, /Tentative 141 Schedule.*Week 1.*Integrals/);
   assert.equal(document.querySelector("select").textContent, "Schedule");
   assert.doesNotMatch(document.body.textContent, /no preview available/);
+  assert.equal(downloads, 1);
+});
+
+test("an image with an XLSX name uses the original image for both Canvas MIME and binary fallback", async () => {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+  let previews = 0;
+  globalThis.previewRequest = async () => { previews++; return { previewUrl: null }; };
+  globalThis.fileRequest = async () => new Blob([png], { type: "application/octet-stream" });
+  globalThis.Worker = class { constructor() { assert.fail("Images must not be sent to the spreadsheet parser"); } };
+  for (const [id, contentType] of [[61, "image/png"], [62, "application/octet-stream"]]) {
+    await act(async () => root.render(createElement(Viewer, { file: { id, name: "Tentative 141 Schedule F2026.xlsx", contentType } })));
+    const img = document.querySelector("img");
+    assert.equal(img.alt, "Tentative 141 Schedule F2026.xlsx");
+    const response = await fetch(img.src);
+    assert.equal(response.headers.get("content-type"), "image/png");
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), png);
+    assert.equal(document.querySelector("table, iframe, [role=alert]"), null);
+  }
+  assert.equal(previews, 1);
 });
 
 test("switching files discards an unfinished old preview and never shows it for the new file", async () => {

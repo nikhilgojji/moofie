@@ -1,11 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadFilePreview } from "../../supabase/functions/canvas/filePreview.ts";
-import { filePreviewKind } from "./filePreview.js";
+import { detectBinaryPreview, filePreviewKind } from "./filePreview.js";
 
 const origin = "https://catcourses.ucmerced.edu";
 const signed = "/api/v1/canvadoc_session?blob=signed-file&hmac=signature";
 const session = "https://canvadocs.instructure.com/1/sessions/signed-session/view";
+
+test("Canvas content type takes precedence over a misleading attachment filename", () => {
+  for (const [contentType, expected] of [["image/png", "image"], ["image/jpeg", "image"], ["application/pdf", "pdf"], ["text/html", "html"]]) {
+    assert.equal(filePreviewKind({ name: "Tentative 141 Schedule F2026.xlsx", contentType }), expected);
+  }
+  assert.equal(filePreviewKind({ name: "picture.png", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "document");
+});
+
+test("binary detection recovers converted images and PDFs without interpreting HTML as a document", async () => {
+  for (const [bytes, mime] of [[Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10), "image/png"], [Uint8Array.of(255, 216, 255), "image/jpeg"], ["GIF89a", "image/gif"], ["RIFF0000WEBP", "image/webp"], ["%PDF-1.7", "application/pdf"]]) {
+    assert.equal((await detectBinaryPreview(new Blob([bytes]))).mime, mime);
+  }
+  for (const value of ["", "<html>Sign in</html>", "PK workbook", "RIFF0000WAVE"]) assert.equal(await detectBinaryPreview(new Blob([value])), null);
+});
 
 test("Office formats request Canvas previews even with generic or misleading MIME types", () => {
   for (const name of ["Schedule.XLSX", "notes.xls", "slides.pptx", "essay.docx", "doc.rtf", "sheet.ods"]) {

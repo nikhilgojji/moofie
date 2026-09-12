@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { loadCourseFile, loadCourseFilePreview } from "../canvasApi";
-import { filePreviewKind } from "../utils/filePreview";
+import { detectBinaryPreview, filePreviewKind } from "../utils/filePreview";
 import { ContentSkeleton } from "./ContentSkeleton";
 import { startCanvasAutoRefresh } from "../utils/canvasSync";
 const SpreadsheetPreview = lazy(() => import("./SpreadsheetPreview"));
@@ -17,21 +17,25 @@ export function useFilePreview(courseId, file, enabled = true) {
     setState({ key, loading: true });
     async function load() {
       if (file.locked) throw new Error("This file is currently locked in Canvas.");
+      let spreadsheet = false;
       if (kind === "document") {
-        const spreadsheet = /\.(xlsx?|xlsm|ods)$/i.test(file.name || "");
+        spreadsheet = /\.(xlsx?|xlsm|ods)$/i.test(file.name || "");
         let result;
         try { result = await loadCourseFilePreview(courseId, file.id); }
         catch (error) { if (!spreadsheet) throw error; }
-        if (!result?.previewUrl && spreadsheet) return { spreadsheet: true };
-        return { documentUrl: result.previewUrl };
+        if (result?.previewUrl) return { documentUrl: result.previewUrl };
       }
       const mime = file.contentType && file.contentType !== "application/octet-stream" ? file.contentType :
         kind === "html" ? "text/html" : kind === "text" ? "text/plain" :
         String(file.name).toLowerCase().endsWith(".svg") ? "image/svg+xml" : undefined;
-      const blob = await loadCourseFile(courseId, file.id, mime);
+      let blob = await loadCourseFile(courseId, file.id, mime);
+      const detected = await detectBinaryPreview(blob);
       if (!active) return {};
+      if (detected) blob = blob.slice(0, blob.size, detected.mime);
+      const resolvedKind = detected?.kind || kind;
+      if (resolvedKind === "document") return { spreadsheet, blob };
       objectUrl = URL.createObjectURL(blob);
-      return { blob, url: objectUrl, text: kind === "text" ? await blob.text() : undefined };
+      return { kind: resolvedKind, blob, url: objectUrl, text: resolvedKind === "text" ? await blob.text() : undefined };
     }
     load().then(result => {
       if (active) setState({ ...result, key, loading: false });
@@ -49,7 +53,7 @@ export function useFilePreview(courseId, file, enabled = true) {
     const stop = current.error ? startCanvasAutoRefresh(retry) : () => {};
     return () => { stop(); window.removeEventListener("moofie:refresh", retry); };
   }, [enabled, current.error]);
-  return { ...current, kind, retry: () => setRevision(value => value + 1) };
+  return { ...current, kind: current.kind || kind, retry: () => setRevision(value => value + 1) };
 }
 
 export function FileDownload({ courseId, file, preview, children, ...props }) {
@@ -78,7 +82,7 @@ export function FilePreview({ preview, file, PdfPreview, courseId }) {
   const [frameError, setFrameError] = useState(false);
   useEffect(() => { setFrameLoaded(false); setFrameError(false); }, [preview.documentUrl]);
   if (preview.loading) return <ContentSkeleton label="Opening document" variant="document" />;
-  if (preview.spreadsheet || frameError && /\.(xlsx?|xlsm|ods)$/i.test(file.name || "")) return <Suspense fallback={<ContentSkeleton label="Opening spreadsheet" variant="document" />}><SpreadsheetPreview key={file.id} courseId={courseId} file={file} /></Suspense>;
+  if (preview.spreadsheet || frameError && /\.(xlsx?|xlsm|ods)$/i.test(file.name || "")) return <Suspense fallback={<ContentSkeleton label="Opening spreadsheet" variant="document" />}><SpreadsheetPreview key={file.id} courseId={courseId} file={file} sourceBlob={preview.blob} /></Suspense>;
   if (preview.error || frameError) return <div className="document-reader-message" role="alert"><p>{preview.error || "The document preview could not load."}</p><button type="button" onClick={() => { setFrameError(false); preview.retry(); }}>Retry preview</button></div>;
   if (preview.kind === "pdf") return <PdfPreview fileUrl={preview.url} fileBlob={preview.blob} name={file.name} />;
   if (preview.kind === "image") return <div className="document-reader-image"><img src={preview.url} alt={file.name} /></div>;
