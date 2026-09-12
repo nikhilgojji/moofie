@@ -526,11 +526,14 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .spreadsheet-controls label { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .spreadsheet-controls select { max-width: min(50vw, 320px); }
 .spreadsheet-controls button:disabled { opacity: .5; cursor: default; }
-.spreadsheet-scroll { flex: 1; overflow: auto; min-height: 240px; }
-.spreadsheet-scroll table { border-collapse: separate; border-spacing: 0; color: #171717; background: #fff; font-size: 14px; min-width: 100%; }
-.spreadsheet-scroll td, .spreadsheet-scroll th { padding: 9px 12px; border-right: 1px solid #d6d6d6; border-bottom: 1px solid #d6d6d6; white-space: pre-wrap; min-width: 100px; max-width: 500px; overflow-wrap: anywhere; vertical-align: top; }
-.spreadsheet-scroll th { min-width: 42px; background: #f0f0ef; font-weight: 500; }
-.spreadsheet-scroll thead th { position: sticky; top: 0; z-index: 1; }
+.spreadsheet-scroll { flex: 1; overflow: auto; min-height: 240px; padding: 32px 24px; background: var(--bg); }
+.spreadsheet-paper-space { position: relative; margin: 0 auto; flex-shrink: 0; }
+.spreadsheet-paper { position: absolute; top: 0; left: 0; transform-origin: top left; box-sizing: border-box; padding: 32px 48px; background: #fff; color: #000; border: 1px solid #bfc3c8; font: 11pt Calibri, Arial, sans-serif; }
+.spreadsheet-paper table { table-layout: fixed; border-collapse: collapse; border-spacing: 0; color: #000; background: #fff; font: inherit; margin: 0; }
+.spreadsheet-paper td { box-sizing: border-box; padding: 0 2px; border: 0; min-width: 0; max-width: none; height: inherit; white-space: pre; overflow: hidden; vertical-align: bottom; line-height: normal; color: #000; }
+.spreadsheet-print-header, .spreadsheet-print-footer { display: grid; grid-template-columns: repeat(3, 1fr); white-space: pre-wrap; font: 11pt Calibri, Arial, sans-serif; }
+.spreadsheet-print-header { margin-bottom: 3px; }
+.spreadsheet-print-footer { margin-top: 12px; }
 .assignment-submission-preview .spreadsheet-preview { height: 70vh; }
 @media (max-width: 700px) {
   .signed-in-nav-actions { gap: 8px; flex-wrap: wrap; }

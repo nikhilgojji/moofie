@@ -27,13 +27,16 @@ export function sheetPage(workbook, sheetIndex = 0, rowStart = 0, colStart = 0) 
       const cell = sheet[address];
       const fill = cell?.s?.fgColor?.rgb;
       cells.push({ address, text: cell ? String(cell.w ?? utils.format_cell(cell)) : "",
+        style: cell?.previewStyle, runs: cell?.previewRuns,
         rowSpan: merge ? Math.min(rowEnd - 1, merge.e.r) - r + 1 : 1,
         colSpan: merge ? Math.min(colEnd - 1, merge.e.c) - c + 1 : 1,
         fill: typeof fill === "string" && /^[\da-f]{6}$/i.test(fill) ? `#${fill}` : undefined,
       });
     }
-    rows.push({ number: r + 1, cells });
+    rows.push({ number: r + 1, cells, height: sheet["!rows"]?.[r]?.hpx || sheet["!rows"]?.[r]?.hpt * 4 / 3 || sheet["!layout"]?.defaultRowHeight || 20, hidden: Boolean(sheet["!rows"]?.[r]?.hidden) });
   }
   return { rows, columns: Array.from({ length: colEnd - colStart }, (_, i) => utils.encode_col(colStart + i)),
+    columnWidths: Array.from({ length: colEnd - colStart }, (_, i) => sheet["!cols"]?.[colStart + i]?.hidden ? 0 : sheet["!cols"]?.[colStart + i]?.wpx || sheet["!layout"]?.defaultColWidth || 64),
+    header: sheet["!layout"]?.header, footer: sheet["!layout"]?.footer, styleWarning: workbook.styleWarning,
     rowCount: range.e.r + 1, colCount: range.e.c + 1, rowStart, colStart };
 }

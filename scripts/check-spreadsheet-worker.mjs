@@ -1,0 +1,29 @@
+import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
+import ExcelJS from "exceljs";
+
+// Exercise Vite's actual browser bundle, including ExcelJS's browser build.
+const assets = new URL("../dist/assets/", import.meta.url);
+const workerName = (await readdir(assets)).find(name => /^spreadsheet\.worker-.*\.js$/.test(name));
+assert.ok(workerName, "Build the app before checking the preview worker.");
+globalThis.self = globalThis;
+let result;
+globalThis.postMessage = value => { result = value; };
+await import(new URL(workerName, assets).href);
+const book = new ExcelJS.Workbook(), sheet = book.addWorksheet("Schedule");
+sheet.headerFooter.oddHeader = "&L&BSchedule title";
+sheet.addRow(["Week", "Topic"]);
+sheet.getCell("A1").font = { bold: true, size: 14 };
+sheet.getCell("A1").border = { bottom: { style: "thick" } };
+sheet.getCell("A101").value = "Last row";
+const binary = await book.xlsx.writeBuffer();
+const bytes = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+await globalThis.onmessage({ data: { bytes, fileName: "schedule.xlsx", requestId: 1 } });
+assert.equal(result.error, undefined);
+assert.equal(result.page.styleWarning, undefined);
+assert.equal(result.page.header.left[0].text, "Schedule title");
+assert.equal(result.page.rows[0].cells[0].style.fontWeight, "700");
+assert.equal(result.page.rows[0].cells[0].style.borderBottom, "3px solid #000000");
+await globalThis.onmessage({ data: { rowStart: 100, requestId: 2 } });
+assert.equal(result.page.rows[0].cells[0].text, "Last row");
+console.log("Built spreadsheet worker preserves formatting, headers, and row navigation.");
