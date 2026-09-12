@@ -16,7 +16,8 @@ export function SyncStatus({ checkedAt, courses = [] }) {
   const lastCheck = dashboard?.checkedAt || checkedAt;
   const minutes = lastCheck ? Math.max(0, Math.floor((now - Date.parse(lastCheck)) / 60_000)) : null;
   const label = navigator.onLine === false ? "Offline · showing saved data" : busy ? "Checking Canvas…" : errors.length ? "Some Canvas data needs attention" : minutes == null ? "Canvas not checked yet" : minutes >= 3 ? `Canvas data is ${minutes} min old` : `Canvas checked ${minutes === 0 ? "just now" : `${minutes} min ago`}`;
-  return <details className="canvas-sync-status"><summary aria-label={label}>{label}</summary><div className="canvas-sync-panel">
+  return <details className="canvas-sync-status"><summary>Checking Canvas</summary><div className="canvas-sync-panel">
+    <p>{label}</p>
     <strong>Canvas sync</strong><p>{lastCheck ? `Last successful dashboard check: ${new Date(lastCheck).toLocaleString()}` : "Waiting for the first successful Canvas check."}</p>
     <p>All enrolled courses and their pages are checked in the background while Moofie is open. Incomplete loads retry automatically.</p>
     {coverage.length > 0 && <><p>{checkedCourses} of {coverage.length} course lists checked · {checkedPages} of {pageCount} discovered pages loaded successfully.</p>
