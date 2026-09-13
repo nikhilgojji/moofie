@@ -1,5 +1,5 @@
 /* The supplied reference sets the visual language. Keep Canvas interactions native. */
-.module-actions { display: flex; justify-content: flex-end; margin: 0 0 28px; }
+.module-actions { display: flex; justify-content: flex-end; margin: 0 0 20px; }
 .module-actions button { padding: 9px 14px; color: var(--text-strong); background: var(--panel-soft); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; }
 .module-actions button:hover { background: var(--panel-hover); }
 .home-recent-announcements { margin-bottom: 32px; }
@@ -178,7 +178,7 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .home-course-picker button:is(:hover, :focus-visible) .course-picker-open { color: var(--accent); }
 .home-course-picker button:is(:hover, :focus-visible) svg { transform: translateX(4px); }
 
-.home-content.is-course-open, .course-content-layout { width: min(1440px, calc(100% - 64px)); }
+.home-content.is-course-open, .course-content-layout { width: calc(100% - 64px); }
 .home-course-heading, .course-content-identity {
   padding: 0 12px 26px;
   border: 0;
@@ -206,6 +206,8 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .home-resource-grid > .home-resource-section:not(.course-navigation-section) .home-resource-title { padding: 0 0 28px; margin-bottom: 12px; border-color: var(--line-soft); }
 .home-resource-title h3 { margin-top: 10px; font-size: clamp(32px, 3vw, 46px); font-weight: 500; letter-spacing: -.035em; line-height: 1.2; }
 .home-resource-title > strong { color: var(--muted); font-size: 13px; }
+.home-resource-grid > .home-resource-section.modules-section .home-resource-title { padding-bottom: 16px; }
+.modules-section .home-resource-title h3 { margin-top: 0; font-size: 28px; line-height: 1.25; }
 .home-resource-row, .course-file-download-row { min-height: 80px; padding: 18px 12px; }
 .home-resource-copy strong, .course-file-download-row strong, .assignment-preview-copy > strong { color: var(--text-strong); font-size: 16px; font-weight: 400; line-height: 1.6; }
 .home-resource-copy small, .home-resource-meta small { font-size: 12px; line-height: 1.65; }
@@ -225,25 +227,25 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .home-modules-list { --module-header: #1b1c1f; --module-surface: #111214; --module-line: #303136; display: grid; gap: 40px; }
 :root[data-theme="light"] .home-modules-list { --module-header: #f1f3f4; --module-surface: #fff; --module-line: #dddfe3; }
 .home-modules-list details, .home-modules-list details:last-child { border: 1px solid var(--module-line); border-radius: 0; background: var(--module-surface); }
-.home-modules-list summary, .home-modules-list details[open] summary { min-height: 64px; padding: 18px 20px; gap: 16px; font-weight: 500; color: var(--text-strong); background: var(--module-header); }
+.home-modules-list summary, .home-modules-list details[open] summary { min-height: 56px; padding: 14px 16px; gap: 16px; font-weight: 500; color: var(--text-strong); background: var(--module-header); }
 .home-modules-list summary:hover { background: var(--panel-hover); }
 .home-modules-list summary span { font-size: 16px; line-height: 1.5; font-weight: 550; overflow-wrap: anywhere; }
 .home-modules-list summary small { flex-shrink: 0; font-size: 12px; }
 .home-modules-list summary::after { flex-shrink: 0; }
 .home-modules-list .module-items { border-top: 1px solid var(--module-line); }
 .home-modules-list .module-item + .module-item { border-top: 1px solid var(--module-line); }
-.home-modules-list .home-resource-row { min-height: 72px; padding: 18px 20px; gap: 16px; border: 0; }
+.home-modules-list .home-resource-row { min-height: 56px; padding: 10px 16px; gap: 16px; border: 0; }
 .home-modules-list .home-resource-copy { min-width: 0; }
 .home-modules-list .home-resource-copy strong { font-size: 16px; font-weight: 450; line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
-.home-modules-list .home-resource-meta { margin-top: 6px; gap: 12px; }
+.home-modules-list .home-resource-meta { margin-top: 2px; gap: 12px; }
 .home-modules-list .home-resource-type-icon { flex: 0 0 20px; width: 20px; height: 24px; border: 0; border-radius: 0; background: none; color: var(--text); }
-.home-modules-list .home-module-subheader { min-height: 64px; display: flex; align-items: center; padding: 20px; border: 0; color: var(--text-strong); font-size: 16px; line-height: 1.5; font-weight: 600; letter-spacing: 0; overflow-wrap: anywhere; }
+.home-modules-list .home-module-subheader { min-height: 54px; display: flex; align-items: center; padding: 14px 16px; border: 0; color: var(--text-strong); font-size: 16px; line-height: 1.5; font-weight: 600; letter-spacing: 0; overflow-wrap: anywhere; }
 .home-modules-list .home-resource-empty { padding: 20px; }
 @media (max-width: 760px) {
   .home-modules-list { gap: 28px; }
   .home-modules-list summary, .home-modules-list details[open] summary { padding: 16px; }
-  .home-modules-list .home-resource-row { padding: 18px 16px; gap: 12px; }
-  .home-modules-list .home-module-subheader { padding: 18px 16px; }
+  .home-modules-list .home-resource-row { padding: 10px 16px; gap: 12px; }
+  .home-modules-list .home-module-subheader { padding: 14px 16px; }
 }
 
 .course-content-route .course-viewer > header,
@@ -309,11 +311,11 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .site-footer { border-top: 1px solid var(--line-soft); font-size: 11px; }
 
 @media (min-width: 761px) {
-  .home-content.is-course-open { padding-top: 54px; }
-  .home-course-content { grid-template-columns: 230px minmax(0, 1fr); column-gap: clamp(36px, 5vw, 88px); }
+  .home-content.is-course-open { padding-top: 28px; }
+  .home-course-content { grid-template-columns: 200px minmax(0, 1fr); column-gap: 32px; }
   .home-course-sidebar { top: 94px; gap: 24px; }
-  .home-resource-grid { padding: 0 12px 0 0; }
-  .course-content-layout { grid-template-columns: 230px minmax(0, 1fr); gap: clamp(36px, 5vw, 88px); padding-top: 54px; }
+  .home-resource-grid { padding: 0; }
+  .course-content-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 32px; padding-top: 28px; }
   .course-content-navigation { padding-top: 0; top: 94px; }
   .course-content-layout:not(.is-file-preview) .course-viewer-body { padding-top: 28px; }
 }

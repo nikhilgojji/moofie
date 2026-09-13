@@ -1794,7 +1794,6 @@ function HomeDashboard({
                     >
                       <div className="home-resource-title">
                         <div>
-                          <span>Course order</span>
                           <h3>Modules</h3>
                         </div>
                         <strong>{resources.modules.length}</strong>
