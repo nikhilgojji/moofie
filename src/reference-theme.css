@@ -251,18 +251,21 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .group-label { background: transparent; padding-block: 22px; }
 .assignment-row { padding-block: 16px; }
 
-.landing-page .access-hero, .connect-page .access-layout { width: min(860px, calc(100% - 64px)); align-items: flex-start; padding-top: clamp(72px, 12vh, 140px); }
-.landing-page .access-copy, .connect-page .access-copy { text-align: left; }
-.landing-page .access-copy h1, .connect-page .access-copy h1 { max-width: 760px; margin-left: 0; font-size: clamp(42px, 5vw, 68px); font-weight: 500; line-height: 1.15; letter-spacing: -.04em; color: var(--text-strong); }
+.landing-page .access-hero, .connect-page .access-layout { width: min(860px, calc(100% - 64px)); align-items: center; padding-top: clamp(72px, 12vh, 140px); }
+.landing-page .access-copy, .connect-page .access-copy { text-align: center; }
+.landing-page .access-copy h1, .connect-page .access-copy h1 { max-width: 760px; margin-inline: auto; font-size: clamp(42px, 5vw, 68px); font-weight: 500; line-height: 1.15; letter-spacing: -.04em; color: var(--text-strong); }
 .access-copy h1 span { color: var(--text-strong); }
-.landing-page .access-copy > p, .connect-page .access-copy > p { max-width: 65ch; margin: 28px 0 0; font-size: 19px; line-height: 1.75; }
+.landing-page .access-copy > p, .connect-page .access-copy > p { max-width: 65ch; margin: 28px auto 0; font-size: 19px; line-height: 1.75; }
 .landing-page .auth-form, .connect-page .access-form,
 :root[data-theme="light"] .landing-page .auth-form,
-:root[data-theme="light"] .connect-page .access-form { max-width: 640px; margin: 44px 0 0; padding: 28px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
-/* The connection screen sits on a photograph in either theme. */
-.connect-page .access-layout { align-items: center; }
-.connect-page .access-copy { text-align: center; }
-.connect-page .access-copy h1, .connect-page .access-copy > p { margin-inline: auto; }
+:root[data-theme="light"] .connect-page .access-form { max-width: 640px; margin: 44px auto 0; padding: 28px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+/* Authentication and connection screens sit on a photograph in either theme. */
+.landing-page .auth-form, :root[data-theme="light"] .landing-page .auth-form,
+.landing-page .auth-form .form-heading { border-color: #ffffff55; }
+.landing-page .auth-form :is(.form-heading, .form-heading span, .auth-consent, .auth-consent a) { color: #f8fafc; text-shadow: 0 1px 3px #0009; }
+.landing-page .auth-consent a { text-underline-offset: 3px; }
+.landing-page .auth-consent a:hover { color: #fff; }
+.landing-page .auth-consent a:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .connect-page .access-form, :root[data-theme="light"] .connect-page .access-form { margin-inline: auto; border-color: #ffffff55; }
 .connect-page .access-form :is(label, details, summary) { color: #f8fafc; }
 .connect-page .access-form details { border-color: #ffffff55; }
