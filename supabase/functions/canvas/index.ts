@@ -429,8 +429,14 @@ async function dashboard(canvasUrl: string, token: string) {
           ),
         ),
       }));
-      compareCanvasCollections({ groups: rawGroups }, { groups });
-      for (let i = 0; i < rawGroups.length; i++) compareCanvasCollections({ assignments: rawGroups[i].assignments || [] }, { assignments: groups[i].assignments });
+      const checks = compareCanvasCollections({ groups: rawGroups }, { groups });
+      checks.assignments = { source: 0, returned: 0, matched: true };
+      for (let i = 0; i < rawGroups.length; i++) {
+        const check = compareCanvasCollections({ assignments: rawGroups[i].assignments || [] }, { assignments: groups[i].assignments }).assignments;
+        checks.assignments.source += check.source;
+        checks.assignments.returned += check.returned;
+        checks.assignments.matched &&= check.matched;
+      }
       const enrollment =
         course.enrollments?.find(
           (item: any) =>
@@ -469,12 +475,13 @@ async function dashboard(canvasUrl: string, token: string) {
             ).replace(/^A\+$/i, "A")
           : null,
         weighted: Boolean(course.apply_assignment_group_weights),
+        _sync: { checks, partial: Object.values(checks).some(check => !check.matched) },
         groups,
         assignments,
       };
     }),
   );
-  return { profile: profile.data, courses, _sync: { source: "Canvas", checkedAt: new Date().toISOString() } };
+  return { profile: profile.data, courses, _sync: { source: "Canvas", checkedAt: new Date().toISOString(), partial: courses.some(course => course._sync.partial) } };
 }
 
 async function courseResources(
@@ -585,7 +592,7 @@ async function courseResources(
     syllabusEvents: syllabusEvents.map((event: any) => ({ id: event.id, title: event.title || "Course event", description: event.description || "", startAt: event.start_at || null })),
     announcements: announcements.map((announcement: any) => ({
       id: announcement.id,
-      title: announcement.title || "Announcement",
+      title: announcement.title ?? "Announcement",
       message: announcement.message || "",
       postedAt: announcement.posted_at || announcement.created_at || null,
       author: announcement.author?.display_name || null,
@@ -597,11 +604,11 @@ async function courseResources(
     })),
     modules: fullModules.map((module: any) => ({
       id: module.id,
-      name: module.name || "Module",
+      name: module.name ?? "Module",
       state: module.state || null,
       items: (module.items || []).map((item: any) => ({
         id: item.id,
-        title: item.title || "Untitled item",
+        title: item.title ?? "Untitled item",
         type: item.type || "Item",
         indent: Number(item.indent || 0),
         completed: item.completion_requirement?.completed ?? null,
@@ -619,7 +626,7 @@ async function courseResources(
     folders: folders.map((folder: any) => ({
       id: folder.id,
       parentId: folder.parent_folder_id ?? null,
-      name: folder.name || "Untitled folder",
+      name: folder.name ?? "Untitled folder",
       createdAt: folder.created_at || null,
       updatedAt: folder.updated_at || null,
       locked: Boolean(folder.locked_for_user || folder.hidden_for_user),
@@ -628,7 +635,7 @@ async function courseResources(
       id: file.id,
       folderId: file.folder_id ?? null,
       createdAt: file.created_at || null,
-      name: file.display_name || file.filename || "Untitled file",
+      name: file.display_name ?? file.filename ?? "Untitled file",
       contentType: file["content-type"] || null,
       size: Number(file.size || 0),
       updatedAt: file.updated_at || file.created_at || null,
@@ -639,7 +646,7 @@ async function courseResources(
     pages: pages.map((page: any) => ({
       id: page.page_id || page.url,
       pageUrl: page.url,
-      title: page.title || "Untitled page",
+      title: page.title ?? "Untitled page",
       updatedAt: page.updated_at || page.created_at || null,
       htmlUrl: safeLink(page.html_url),
     })),
@@ -662,7 +669,7 @@ async function courseResources(
       pinned: Boolean(discussion.pinned),
       lastReplyAt: discussion.last_reply_at || discussion.posted_at || null,
       id: discussion.id,
-      title: discussion.title || "Discussion",
+      title: discussion.title ?? "Discussion",
       message: discussion.message || "",
       postedAt: discussion.posted_at || discussion.created_at || null,
       authorName:
@@ -677,7 +684,7 @@ async function courseResources(
     })),
     quizzes: quizzes.map((quiz: any) => ({
       id: quiz.id,
-      title: quiz.title || "Quiz",
+      title: quiz.title ?? "Quiz",
       description: quiz.description || "",
       dueAt: quiz.due_at || null,
       points: Number(quiz.points_possible || 0),
@@ -698,10 +705,20 @@ async function courseResources(
     tabs: tabs.filter((tab: any) => !tab.hidden && safeLink(tab.html_url, canvasUrl)).sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0)),
   }, result);
   checks.course = compareCanvasCourse(course, frontPage, result.course);
-  for (let i = 0; i < fullModules.length; i++) compareCanvasCollections({ items: fullModules[i].items || [] }, result.modules[i]);
+  checks.moduleItems = { source: 0, returned: 0, matched: true };
+  for (let i = 0; i < fullModules.length; i++) {
+    const check = compareCanvasCollections({ items: fullModules[i].items || [] }, result.modules[i]).items;
+    checks.moduleItems.source += check.source;
+    checks.moduleItems.returned += check.returned;
+    checks.moduleItems.matched &&= check.matched;
+  }
+  for (const [name, check] of Object.entries(checks)) {
+    const section = name === "moduleItems" ? "modules" : name;
+    if (!check.matched && (!resourceStates[section] || resourceStates[section] === "current")) resourceStates[section] = "mismatch";
+  }
   if (Object.values(resourceStates).includes("error")) console.warn("canvas_read_partial", { sections: Object.entries(resourceStates).filter(([, status]) => status === "error").map(([name]) => name) });
   return { ...result, _sync: { checkedAt: new Date().toISOString(), source: "Canvas", sections: resourceStates,
-    partial: Object.values(resourceStates).includes("error"), checks } };
+    partial: Object.values(resourceStates).some(status => status === "error" || status === "mismatch"), checks } };
 
 }
 

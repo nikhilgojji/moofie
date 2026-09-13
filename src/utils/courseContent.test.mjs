@@ -55,6 +55,44 @@ test("native Canvas links preserve the course and content identity without outgo
 // constructing the frontend response; this catches data silently lost in transit.
 const source = readFileSync(new URL("../../supabase/functions/canvas/index.ts", import.meta.url), "utf8");
 const resourceCode = stripTypeScriptTypes(source.slice(source.indexOf("async function courseResources("), source.indexOf("async function coursePage(")));
+function moduleFixture(comparison = compareCanvasCollections) {
+  const request = async (_, path) => path.includes('front_page') ? null : { name: 'Fixture course', default_view: 'modules', syllabus_body: '<p>Course syllabus</p>' };
+  const list = async (_, path, _token, status) => {
+    status?.(path.includes('/files?') ? 'restricted' : 'current');
+    if (path.includes('/modules?')) return [{ id: 1, name: 'Week 1', items_count: 2, items: [
+      { id: 11, type: 'SubHeader', title: '', position: 1, description: 'An API extension that is not a displayed module-item field' },
+      { id: 12, type: 'Assignment', title: 'Reading', position: 2, content_id: 19, content_details: { locked_for_user: true } },
+    ] }];
+    if (path.includes('/tabs?')) return [{ id: 'modules', label: 'Modules', html_url: '/courses/1/modules' }];
+    if (path.includes('/pages?')) return [{ page_id: 4, title: 'Welcome', url: 'welcome' }];
+    return [];
+  };
+  const safeLink = (value, base) => { try { return new URL(value, base).href; } catch { return null; } };
+  return new Function('optionalCanvasRequest', 'optionalCanvasList', 'canvasList', 'safeLink', 'completeModules', 'moduleExternalUrl', 'mapCoursePerson', 'compareCanvasCollections', 'compareCanvasCourse', 'resourceSection', resourceCode + '\nreturn courseResources;')(request, list, list, safeLink, completeModules, moduleExternalUrl, mapCoursePerson, comparison, compareCanvasCourse, resourceSection);
+}
+test('blank Canvas module headings survive mapping without falsely rejecting the course', async () => {
+  const result = await moduleFixture()('https://canvas.example', 'fixture', 1, false);
+  assert.equal(result.modules[0].items[0].title, '');
+  assert.equal(result.modules[0].items[1].locked, true);
+  assert.equal(result._sync.partial, false);
+  assert.deepEqual(result._sync.checks.moduleItems, { source: 2, returned: 2, matched: true });
+  assert.equal(result._sync.sections.files, 'restricted');
+});
+test('an actual module mapping mismatch is flagged without losing navigation, pages or syllabus', async () => {
+  const load = moduleFixture((sources, mapped) => {
+    if (sources.items) mapped.items = mapped.items.slice(1); // Simulate a future mapper regression.
+    return compareCanvasCollections(sources, mapped);
+  });
+  const result = await load('https://canvas.example', 'fixture', 1, false);
+  assert.equal(result.course.syllabusBody, '<p>Course syllabus</p>');
+  assert.equal(result.tabs[0].label, 'Modules');
+  assert.equal(result.pages[0].title, 'Welcome');
+  assert.equal(result.modules[0].items[0].locked, true);
+  assert.equal(result._sync.partial, true);
+  assert.equal(result._sync.sections.modules, 'mismatch');
+  assert.equal(result._sync.sections.files, 'restricted');
+  assert.deepEqual(result._sync.checks.moduleItems, { source: 2, returned: 1, matched: false });
+});
 test("course resource mapping carries Modules Home, full content and all accessible People", async () => {
   const requests = [];
   const request = async (_, path) => {

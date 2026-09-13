@@ -37,8 +37,8 @@ test("source comparisons detect missing, reordered, renamed or altered content i
   const source = { pages: [{ page_id: 1, title: "Syllabus" }, { page_id: 2, title: "Schedule" }] };
   const correct = { pages: [{ id: 1, title: "Syllabus" }, { id: 2, title: "Schedule" }] };
   assert.equal(compareCanvasCollections(source, correct).pages.matched, true);
-  for (const pages of [correct.pages.slice(1), correct.pages.toReversed(), [{ id: 1, title: "Wrong" }, correct.pages[1]]]) assert.throws(() => compareCanvasCollections(source, { pages }), /comparison failed/);
-  assert.throws(() => compareCanvasCollections({ announcements: [{ id: 1, message: "Changed instructions" }] }, { announcements: [{ id: 1, message: "Old instructions" }] }), /comparison failed/);
+  for (const pages of [correct.pages.slice(1), correct.pages.toReversed(), [{ id: 1, title: "Wrong" }, correct.pages[1]]]) assert.equal(compareCanvasCollections(source, { pages }).pages.matched, false);
+  assert.equal(compareCanvasCollections({ announcements: [{ id: 1, message: "Changed instructions" }] }, { announcements: [{ id: 1, message: "Old instructions" }] }).announcements.matched, false);
 });
 
 test("automatic comparisons pause in background/offline and resume on reconnect", async () => {

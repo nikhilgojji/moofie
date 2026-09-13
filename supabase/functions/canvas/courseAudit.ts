@@ -1,5 +1,5 @@
-// Compare every returned list with its authoritative Canvas response. Do not
-// silently publish truncated mappings as complete course content.
+// Comparisons are diagnostics, not an availability gate. Return mismatches so
+// callers can flag partial results without discarding unrelated Canvas content.
 export function compareCanvasCollections(sources: Record<string, any[]>, mapped: Record<string, any>) {
   const checks: Record<string, { source: number; returned: number; matched: boolean }> = {};
   for (const [name, source] of Object.entries(sources)) {
@@ -11,7 +11,9 @@ export function compareCanvasCollections(sources: Record<string, any[]>, mapped:
       const raw = source[i], output = mapped[name][i];
       const title = raw.title ?? raw.display_name ?? raw.filename ?? raw.name;
       if (title != null && title !== (output.title ?? output.name)) return false;
-      for (const field of ["message", "description"]) if (raw[field] != null && output[field] !== raw[field]) return false;
+      const bodyFields = ["announcements", "discussions", "activity"].includes(name) ? ["message"]
+        : ["assignments", "quizzes", "syllabusEvents"].includes(name) ? ["description"] : [];
+      for (const field of bodyFields) if (raw[field] != null && output[field] !== raw[field]) return false;
       const fields: Record<string, any> = name === "files" ? {
         contentType: raw["content-type"] || null, size: Number(raw.size || 0),
         folderId: raw.folder_id ?? null, locked: Boolean(raw.locked_for_user || raw.hidden_for_user),
@@ -28,7 +30,6 @@ export function compareCanvasCollections(sources: Record<string, any[]>, mapped:
       return true;
     });
     checks[name] = { source: expected.length, returned: actual.length, matched };
-    if (!matched) throw new Error(`Canvas comparison failed for ${name}. Refreshing this course is required.`);
   }
   return checks;
 }
@@ -36,8 +37,7 @@ export function compareCanvasCollections(sources: Record<string, any[]>, mapped:
 export function compareCanvasCourse(course: any, frontPage: any, mapped: any) {
   const expected = { defaultView: course.default_view || null, syllabusBody: course.syllabus_body || "",
     homeBody: frontPage?.body || "", homeTitle: frontPage?.title || null, hasFrontPage: Boolean(frontPage) };
-  if (Object.entries(expected).some(([field, value]) => mapped[field] !== value)) throw new Error("Canvas comparison failed for course home or syllabus.");
-  return { source: 1, returned: 1, matched: true };
+  return { source: 1, returned: 1, matched: Object.entries(expected).every(([field, value]) => mapped[field] === value) };
 }
 
 export function resourceSection(path: string) {

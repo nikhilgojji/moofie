@@ -72,15 +72,15 @@ test("partial data is never cached as complete and forced reads still share an i
   assert.equal(calls, 3); await cache.read("user-b", "course", fetcher); assert.equal(calls, 4);
 });
 
-test("source comparisons reject lost MIME types, quiz dates, lock states, and course home content", () => {
+test("source comparisons flag lost MIME types, quiz dates, lock states, and course home content without blocking delivery", () => {
   const file = { id: 1, name: "schedule.xlsx", "content-type": "image/png", size: 50, locked_for_user: true };
   const mapped = { id: 1, name: file.name, contentType: "image/png", size: 50, folderId: null, locked: true };
   assert.equal(compareCanvasCollections({ files: [file] }, { files: [mapped] }).files.matched, true);
-  for (const change of [{ contentType: null }, { locked: false }]) assert.throws(() => compareCanvasCollections({ files: [file] }, { files: [{ ...mapped, ...change }] }), /comparison/);
+  for (const change of [{ contentType: null }, { locked: false }]) assert.equal(compareCanvasCollections({ files: [file] }, { files: [{ ...mapped, ...change }] }).files.matched, false);
   const quiz = { id: 1, title: "Quiz", due_at: "2026-09-12", locked_for_user: true };
-  assert.throws(() => compareCanvasCollections({ quizzes: [quiz] }, { quizzes: [{ id: 1, title: "Quiz" }] }), /comparison/);
+  assert.equal(compareCanvasCollections({ quizzes: [quiz] }, { quizzes: [{ id: 1, title: "Quiz" }] }).quizzes.matched, false);
   const course = { default_view: "modules", syllabus_body: "<table>Course summary</table>" };
   const view = { defaultView: "modules", syllabusBody: course.syllabus_body, homeBody: "", homeTitle: null, hasFrontPage: false };
   assert.equal(compareCanvasCourse(course, null, view).matched, true);
-  for (const change of [{ defaultView: "wiki" }, { syllabusBody: "" }]) assert.throws(() => compareCanvasCourse(course, null, { ...view, ...change }), /comparison/);
+  for (const change of [{ defaultView: "wiki" }, { syllabusBody: "" }]) assert.equal(compareCanvasCourse(course, null, { ...view, ...change }).matched, false);
 });
