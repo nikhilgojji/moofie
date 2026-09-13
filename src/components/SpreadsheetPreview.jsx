@@ -1,4 +1,5 @@
 import { createSpreadsheetReader } from "../utils/spreadsheetReader";
+import { reportIssue } from '../utils/issueReporting';
 import { useEffect, useRef, useState } from "react";
 import { loadCourseFile } from "../canvasApi";
 import { ContentSkeleton } from "./ContentSkeleton";
@@ -35,7 +36,7 @@ export default function SpreadsheetPreview({ courseId, file, sourceBlob }) {
     const reader = createSpreadsheetReader({
       workerFactory: () => new Worker(new URL("../utils/spreadsheet.worker.js", import.meta.url), { type: "module" }),
       onResult: data => { setResult(data); setLoading(false); setError(""); },
-      onError: message => { setError(message); setLoading(false); },
+      onError: message => { reportIssue({ area: 'preview', kind: 'spreadsheet', code: 'render' }); setError(message); setLoading(false); },
     });
     workerRef.current = reader;
     reader.open(sourceBlob ? Promise.resolve(sourceBlob) : loadCourseFile(courseId, file.id, file.contentType), file.name);

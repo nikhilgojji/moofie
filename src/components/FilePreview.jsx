@@ -4,6 +4,7 @@ import { detectBinaryPreview, filePreviewKind } from "../utils/filePreview";
 import { ContentSkeleton } from "./ContentSkeleton";
 import { startCanvasAutoRefresh } from "../utils/canvasSync";
 import { StaticDocumentPreview } from "./StaticDocumentPreview";
+import { classifyIssue, reportIssue } from '../utils/issueReporting';
 const SpreadsheetPreview = lazy(() => import("./SpreadsheetPreview"));
 
 export function useFilePreview(courseId, file, enabled = true) {
@@ -39,9 +40,13 @@ export function useFilePreview(courseId, file, enabled = true) {
       return { kind: resolvedKind, blob, url: objectUrl, text: resolvedKind === "text" ? await blob.text() : undefined };
     }
     load().then(result => {
+      if (active && kind === 'document' && !result.documentUrl && !result.spreadsheet && !result.url) reportIssue({ area: 'preview', kind, code: 'unavailable' });
       if (active) setState({ ...result, key, loading: false });
     }).catch(error => {
-      if (active) setState({ key, loading: false, error: error.message || "The file could not be loaded." });
+      if (active) {
+        reportIssue({ area: 'preview', kind, code: classifyIssue(error) });
+        setState({ key, loading: false, error: error.message || "The file could not be loaded." });
+      }
     });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [key, courseId, file?.id, file?.contentType, file?.locked, kind]);
@@ -90,14 +95,14 @@ export function FilePreview({ preview, file, PdfPreview, courseId }) {
   if (preview.kind === "html") return <iframe className="document-reader-frame" src={preview.url} title={file.name} sandbox="" referrerPolicy="no-referrer" />;
   if (preview.kind === "video" || preview.kind === "audio") {
     const Media = preview.kind;
-    return <div className="document-reader-media"><Media controls src={preview.url} preload="metadata" aria-label={file.name} /></div>;
+    return <div className="document-reader-media"><Media controls src={preview.url} preload="metadata" aria-label={file.name} onError={() => reportIssue({ area: 'preview', kind: preview.kind, code: 'render' })} /></div>;
   }
   if (preview.documentUrl) return <div className="document-reader-office">
     <div className="document-preview-toolbar"><button type="button" onClick={preview.retry}>Reload preview</button></div>
     {!frameLoaded && <ContentSkeleton label="Loading document preview" variant="document" />}
     <iframe className="document-reader-frame" src={preview.documentUrl} title={file.name}
       referrerPolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-downloads" allow="fullscreen"
-      onLoad={() => setFrameLoaded(true)} onError={() => setFrameError(true)} />
+      onLoad={() => setFrameLoaded(true)} onError={() => { reportIssue({ area: 'preview', kind: 'document', code: 'render' }); setFrameError(true); }} />
   </div>;
   return <div className="document-reader-message"><p>Moofie could not obtain a preview for this file yet. You can retry or download the original file.</p><button type="button" onClick={preview.retry}>Retry preview</button></div>;
 }

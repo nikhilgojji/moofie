@@ -29,3 +29,5 @@ src/utils/.*.fixture.mjs
 *.njsproj
 *.sln
 *.sw?
+test-results/
+playwright-report/

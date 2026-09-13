@@ -1,3 +1,4 @@
+import { classifyIssue, reportIssue } from './issueReporting.js';
 const listeners = new Set();
 let snapshot = { records: {}, coverage: {}, version: 0 };
 let generation = 0;
@@ -43,10 +44,14 @@ export async function recoverCanvasRead(action, payload, operation, { sleep = ms
       const result = await operation();
       if (epoch !== generation) throw new Error("The signed-in account changed. Please retry.");
       const checkedAt = result?._sync?.checkedAt || new Date().toISOString();
+      if (result?._sync?.partial) reportIssue({ area: action, code: 'partial' });
       set({ status: result?._sync?.partial ? "partial" : "current", checkedAt, error: null, checks: result?._sync?.checks || null });
       return result;
     } catch (error) {
-      if (attempt === 2 || !retryableCanvasError(error)) { set({ status: "error", error: error.message }); throw error; }
+      if (attempt === 2 || !retryableCanvasError(error)) {
+        if (epoch === generation) reportIssue({ area: action, code: classifyIssue(error) });
+        set({ status: "error", error: error.message }); throw error;
+      }
       set({ status: "retrying", error: error.message });
     } finally { release(); }
     await sleep(Math.min(5000, 700 * 2 ** attempt) + random() * 400);

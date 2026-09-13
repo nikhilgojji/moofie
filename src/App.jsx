@@ -22,6 +22,8 @@ import { closedContent, readNavigation, useHistoryState, useNavigationScroll, wr
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { pdfErrorMessage, readPdfBytes } from "./utils/pdfSource";
 import { buildCourseNavigation } from "./utils/courseNavigation";
+import { CourseNavigation } from './components/CourseNavigation';
+import { reportIssue } from './utils/issueReporting';
 import {
   connectCanvasAccount,
   deleteMoofieAccount,
@@ -632,32 +634,6 @@ function CourseItemIcon({ type }) {
   );
 }
 
-function CourseNavigation({ activeSection, items, onSelect }) {
-  return (
-    <div className="home-course-navigation">
-      {items.map((tab) => tab.destination?.kind === "external" ? (
-        <a key={tab.id} href={tab.destination.url} target="_blank" rel="noreferrer" title={`${tab.label} (opens in a new tab)`}>
-          <span>{tab.label}</span>
-          <span aria-hidden="true"><CourseRowChevron external /></span>
-        </a>
-      ) : (
-        <button
-          aria-current={activeSection === tab.navigationKey ? "page" : undefined}
-          className={activeSection === tab.navigationKey ? "is-active" : ""}
-          type="button"
-          key={tab.id}
-          onClick={() => onSelect(tab)}
-        >
-          <span>{tab.label}</span>
-          <span aria-hidden="true">
-            <CourseRowChevron external={!tab.section} />
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ResourceRow({ href, onClick, children, className = "" }) {
   const classes = `home-resource-row ${className}`.trim();
   if (onClick) {
@@ -725,6 +701,7 @@ function PdfPageCanvas({ pdfDocument, pageNumber, rotation, scale, setPageElemen
       })
       .catch((error) => {
         if (active && error?.name !== "RenderingCancelledException") {
+          reportIssue({ area: 'preview', kind: 'pdf', code: 'render' });
           setPageError(`Page ${pageNumber} could not be displayed.`);
           setRendering(false);
         }
@@ -786,7 +763,7 @@ function PdfPreview({ fileUrl, fileBlob, name }) {
         if (active) setPdfDocument(nextDocument);
       } catch (error) {
         if (active) {
-          console.error("PDF preview failed:", error?.name, error?.message);
+          reportIssue({ area: 'preview', kind: 'pdf', code: 'render' });
           setPreviewError(pdfErrorMessage(error));
         }
       }
@@ -2394,7 +2371,7 @@ function LegalPage({ type }) {
       <PublicNav label={`${privacy ? "Privacy" : "Terms"} page navigation`} />
 
       <article className="legal-content">
-        <p className="legal-kicker">Last updated August 13, 2026</p>
+        <p className="legal-kicker">Last updated {privacy ? 'September 12, 2026' : 'August 13, 2026'}</p>
         <h1>{privacy ? "Privacy Policy" : "Terms of Service"}</h1>
 
         {privacy ? (
@@ -2430,6 +2407,19 @@ function LegalPage({ type }) {
               Recent gradebook data may remain in your browser for up to 15
               minutes and is cleared when you sign out. Your Google password is
               never shared with or stored by Moofie.
+            </p>
+
+            <h2>Reliability reports</h2>
+            <p>
+              While you are signed in, Moofie automatically reports technical failure
+              categories to help identify broken page loads and previews. Reports
+              contain the app area, error category, preview type, and mobile or
+              desktop layout. They exclude names, grades, course content, file names,
+              URLs, error text, and Canvas tokens. Reports are aggregated without a
+              user identifier. A separate private account counter limits report
+              volume. Old counts and reports are cleaned up when new reports arrive,
+              after one day and 30 days respectively. Ordinary hosting logs may
+              separately contain network request metadata.
             </p>
 
             <h2>Sharing</h2>
@@ -2524,7 +2514,7 @@ function LegalPage({ type }) {
 }
 
 // Course detail screen: render Canvas assignments and calculate temporary what-if grades.
-function CourseDetails({
+export function CourseDetails({
   course,
   data,
   user,

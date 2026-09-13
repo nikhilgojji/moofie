@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DocumentToolbar, useDocumentFullscreen } from "./DocumentToolbar";
 import { documentPageTransform } from "../utils/documentViewer";
+import { reportIssue } from '../utils/issueReporting';
 
 export function StaticDocumentPreview({ preview, file }) {
   const stageRef = useRef(null), scrollRef = useRef(null), textRef = useRef(null);
@@ -28,7 +29,7 @@ export function StaticDocumentPreview({ preview, file }) {
       {error ? <div role="alert"><p>The image could not load.</p><button onClick={() => { setError(false); preview.retry?.(); }}>Retry preview</button></div> :
         <div className="document-static-space" style={{ width: geometry.width, height: geometry.height }}>
           <div className="moofie-pdf-page document-static-paper" style={{ width: size.width, transform: geometry.transform }}>
-            {preview.kind === "image" ? <img src={preview.url} alt={file.name} onLoad={event => setSize({ width: event.target.naturalWidth, height: event.target.naturalHeight })} onError={() => setError(true)} /> : <pre ref={textRef} className="document-static-text">{preview.text}</pre>}
+            {preview.kind === "image" ? <img src={preview.url} alt={file.name} onLoad={event => setSize({ width: event.target.naturalWidth, height: event.target.naturalHeight })} onError={() => { reportIssue({ area: 'preview', kind: 'image', code: 'render' }); setError(true); }} /> : <pre ref={textRef} className="document-static-text">{preview.text}</pre>}
           </div>
         </div>}
     </div>

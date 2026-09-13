@@ -7,6 +7,7 @@
     "lint": "eslint src",
     "test": "node --experimental-strip-types --test src/utils/*.test.mjs",
     "test:preview-worker": "node scripts/check-spreadsheet-worker.mjs",
+    "test:browser": "playwright test",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
@@ -23,10 +24,13 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "overrides": {
-    "exceljs": { "uuid": "11.1.1" }
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@vitejs/plugin-react": "^6.0.5",
     "eslint": "^10.10.0",
     "globals": "^17.12.0",

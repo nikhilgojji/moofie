@@ -6,14 +6,18 @@ import { Analytics } from "@vercel/analytics/react";
 import "@fontsource-variable/libre-franklin";
 // Import the top-level UI component and the global visual rules it depends on.
 import App from "./App";
+import { startIssueReporting } from "./issueReporting";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import "./styles.css";
 import "./reference-theme.css";
 
+const stopIssueReporting = startIssueReporting();
+if (import.meta.hot) import.meta.hot.dispose(stopIssueReporting);
 // Find the empty #root element in index.html and let React control its contents.
 ReactDOM.createRoot(document.getElementById("root")).render(
   // StrictMode performs extra development checks without changing production UI.
   <React.StrictMode>
-    <App />
+    <AppErrorBoundary><App /></AppErrorBoundary>
     <Analytics />
   </React.StrictMode>,
 );
