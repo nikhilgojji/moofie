@@ -259,6 +259,18 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .landing-page .auth-form, .connect-page .access-form,
 :root[data-theme="light"] .landing-page .auth-form,
 :root[data-theme="light"] .connect-page .access-form { max-width: 640px; margin: 44px 0 0; padding: 28px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+/* The connection screen sits on a photograph in either theme. */
+.connect-page .access-layout { align-items: center; }
+.connect-page .access-copy { text-align: center; }
+.connect-page .access-copy h1, .connect-page .access-copy > p { margin-inline: auto; }
+.connect-page .access-form, :root[data-theme="light"] .connect-page .access-form { margin-inline: auto; border-color: #ffffff55; }
+.connect-page .access-form :is(label, details, summary) { color: #f8fafc; }
+.connect-page .access-form details { border-color: #ffffff55; }
+.connect-page .access-form :is(label, summary, li, .text-button) { text-shadow: 0 1px 3px #0009; }
+.connect-page .access-form .text-button { min-height: 44px; margin-right: 20px; color: #f8fafc; text-underline-offset: 4px; }
+.connect-page .access-form .text-button.danger-action { color: #ffb4ad; }
+.connect-page .access-form .text-button:hover, .connect-page .access-form summary:hover { color: #fff; text-decoration: underline; }
+.connect-page .access-form :is(.text-button, summary):focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 2px; }
 .submit-button, .submit-assignment-button { border-radius: 4px; }
 .legal-content, .journal-entry { max-width: 760px; font-size: 18px; line-height: 1.8; }
 .legal-content h1, .journal-entry h1, .writing-index-header h1 { color: var(--text-strong); font-size: clamp(38px, 4.5vw, 60px); font-weight: 500; letter-spacing: -.035em; }
