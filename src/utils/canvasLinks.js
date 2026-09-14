@@ -10,10 +10,17 @@ export function canvasLinkNavigation(value, baseUrl, title = "Course content") {
   if (!Number.isSafeInteger(courseId) || courseId <= 0) return null;
   const route = (match?.[2] ?? path.replace(/^\//, "")).replace(/\/$/, "");
   const patch = { moofieView: "home", moofieHomeCourse: courseId, moofieViewer: null, moofieGradeAssignment: null, moofieCourseAssignment: null };
+  // Canvas file-list links can identify the actual preview in the query string.
+  const previewId = url.searchParams.get("preview");
+  if (match && /^files(?:\/folder\/.*)?$/.test(route) && /^[1-9]\d*$/.test(previewId || "")) {
+    return canvasLinkNavigation(`${base.origin}/courses/${courseId}/files/${previewId}/preview`, base.href, title);
+  }
   if (route === "assignments/syllabus") return { ...patch, moofieHomeSection: "course-syllabus" };
   if (match && route === "grades") return { ...patch, moofieView: "grades", moofieCourse: courseId };
   if (match && Object.hasOwn(sections, route)) return { ...patch, moofieHomeSection: sections[route] };
-  if (match && /^modules\/items\/\d+$/.test(route)) return { ...patch, moofieHomeSection: "course-modules" };
+  // A module-item redirect is not the Modules list. Leave its exact Canvas URL
+  // intact until the destination is known, rather than silently changing it.
+  if (match && /^modules\/items\/\d+$/.test(route)) return null;
   const resource = route.match(/^(pages|assignments|quizzes|discussion_topics|files|external_tools|users)\/([^/]+)(?:\/(?:download|preview))?$/);
   if (!resource) return null;
   const [, kind, rawId] = resource;

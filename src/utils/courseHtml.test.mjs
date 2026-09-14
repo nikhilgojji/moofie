@@ -10,9 +10,19 @@ test("instructor tables and Canvas links survive rendering as Moofie links", () 
   const page = render('<h2>Course Home</h2><table><tr><td rowspan="2">Class</td><td><a href="/courses/39041/assignments/42">Read this</a></td></tr><tr><td>Thursday</td></tr></table>');
   assert.equal(page.querySelector("h2").textContent, "Course Home");
   assert.equal(page.querySelector("td").rowSpan, 2);
-  assert.equal(page.querySelector("a").getAttribute("href"), "#");
+  assert.equal(page.querySelector("a").getAttribute("href"), "https://catcourses.ucmerced.edu/courses/39041/assignments/42");
   assert.equal(page.querySelector("a").getAttribute("data-moofie-link"), "https://catcourses.ucmerced.edu/courses/39041/assignments/42");
   assert.equal(page.querySelector("a").hasAttribute("target"), false);
+});
+
+test("unknown Canvas links and module redirects retain their exact working destinations", () => {
+  const page = render('<a href="/courses/39041/modules/items/123">Specific module item</a><a href="/courses/39041/external_tools/retrieve?url=https%3A%2F%2Ftool.example%2Fquiz">Specific tool link</a><iframe src="/courses/39041/unknown-content" title="Course resource"></iframe>');
+  for (const link of page.querySelectorAll('a')) {
+    assert.ok(link.href.startsWith('https://catcourses.ucmerced.edu/courses/39041/'));
+    assert.equal(link.hasAttribute('data-moofie-link'), false);
+    assert.equal(link.target, '_blank');
+  }
+  assert.match(page.querySelector('a').href, /modules\/items\/123$/);
 });
 
 test("embeds, videos and protected images are preserved without embedding Canvas login pages", () => {

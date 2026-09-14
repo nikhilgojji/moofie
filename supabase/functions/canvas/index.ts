@@ -3,7 +3,7 @@ import { loadFilePreview } from "./filePreview.ts";
 import { mapCoursePerson, loadCoursePerson } from "./coursePeople.ts";
 import { completeModules, moduleExternalUrl } from "./courseModules.ts";
 import { readToolContent } from "./toolContent.ts";
-import { resolveAssignmentLaunch } from "./assignmentLaunch.ts";
+import { resolveAssignmentLaunch, loadModuleToolLaunch } from "./assignmentLaunch.ts";
 // This Supabase Edge Function is the security boundary between the browser,
 // Supabase, and Canvas. It authenticates Moofie users, encrypts Canvas tokens,
 // and returns only the course data the frontend needs.
@@ -1093,6 +1093,14 @@ Deno.serve(async (request) => {
       if (body.action === "course_content") {
         const contentId = Number(body.contentId);
         const kind = String(body.kind);
+        if (kind === "module-launch") {
+          const moduleId = Number(body.moduleId);
+          if (![contentId, moduleId].every(id => Number.isSafeInteger(id) && id > 0)) return respond({ error: "Choose a valid module item." }, 400);
+          return new Response(JSON.stringify(await loadModuleToolLaunch(connection.canvas_url, courseId, moduleId, contentId,
+            async path => (await canvasRequest(connection.canvas_url, path, token)).data)), {
+            headers: { ...headers, "Content-Type": "application/json", "Cache-Control": "no-store" },
+          });
+        }
         const routes: Record<string, string> = { quiz: "quizzes", discussion: "discussion_topics", file: "files", person: "users" };
         if (!Number.isSafeInteger(contentId) || contentId <= 0 || !Object.hasOwn(routes, kind)) return respond({ error: "Choose valid course content." }, 400);
         if (kind === "person") return respond(await loadCoursePerson(courseId, contentId,

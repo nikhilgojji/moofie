@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { createRequestCache } from "./utils/requestCache";
 import { recoverCanvasRead, resetCanvasSync } from "./utils/canvasSync";
+import { classifyIssue, reportIssue } from "./utils/issueReporting";
 
 const courseReads = createRequestCache();
 export function clearCanvasReadCache() { courseReads.clear(); }
@@ -111,9 +112,15 @@ export function loadAssignmentDetails(courseId, assignmentId) {
   return callCanvasFunction("assignment_details", { courseId, assignmentId });
 }
 
-export function loadAssignmentLaunch(courseId, assignmentId) {
+export async function loadAssignmentLaunch(courseId, assignmentId) {
   // Single-use launches are always fresh, with no cache or automatic replay.
-  return invokeCanvasFunction("assignment_details", { courseId, assignmentId, launch: true });
+  try { return await invokeCanvasFunction("assignment_details", { courseId, assignmentId, launch: true }); }
+  catch (error) { reportIssue({ area: "assignment_details", code: classifyIssue(error) }); throw error; }
+}
+
+export async function loadModuleLaunch(courseId, moduleId, contentId) {
+  try { return await invokeCanvasFunction("course_content", { courseId, moduleId, contentId, kind: "module-launch" }); }
+  catch (error) { reportIssue({ area: "course_content", code: classifyIssue(error) }); throw error; }
 }
 
 export function submitAssignment(courseId, assignmentId, submission) {

@@ -1567,13 +1567,9 @@ function HomeDashboard({
       if (new URL(item.externalUrl).origin !== new URL(resources.course.homeUrl).origin) return { href: item.externalUrl };
     }
 
-    return {
-      onClick: () =>
-        openViewer("module-item", item.type || "Course item", {
-          title: item.title,
-          body: "<p>This course item does not include content that Canvas makes available to Moofie.</p>",
-        }),
-    };
+    // An unsupported item still has its real Canvas destination; do not replace
+    // it with a synthetic empty page or a different navigation section.
+    return { href: item.htmlUrl || item.externalUrl || undefined };
   }
 
   function moduleItemMetadata(item) {
@@ -1797,10 +1793,15 @@ function HomeDashboard({
                         </div>
                         <strong>{resources.modules.length}</strong>
                       </div>
-                      <CourseModules key={selectedCourse.id} modules={resources.modules} renderItem={item => {
+                      <CourseModules key={selectedCourse.id} modules={resources.modules} renderItem={(item, module) => {
                         if (item.type === "SubHeader") return <div className="home-module-subheader">{item.title}</div>;
                         const action = moduleItemAction(item);
                         const metadata = moduleItemMetadata(item);
+                        if (item.type === "ExternalTool" && !item.locked) return <ExternalAssignmentLaunch courseId={selectedCourse.id} moduleId={module.id} moduleItemId={item.id} title={item.title} canvasUrl={item.htmlUrl} className="home-resource-row">
+                          <span className="home-resource-type-icon"><CourseItemIcon type={item.type} /></span>
+                          <span className="home-resource-copy"><strong>{item.title}</strong></span>
+                          <span className="home-resource-arrow"><CourseRowChevron external /></span>
+                        </ExternalAssignmentLaunch>;
                         return <ResourceRow className={item.completed ? "is-completed" : ""} href={action.href} onClick={action.onClick}>
                           <span className="home-resource-type-icon"><CourseItemIcon type={item.type} /></span>
                           <span className="home-resource-copy"><strong>{item.title}</strong>

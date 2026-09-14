@@ -31,9 +31,8 @@ export function sanitizeCourseHtml(value, baseUrl, hostWindow = window) {
           continue;
         }
         element.setAttribute(name, url.href);
-        if (link && url.origin === base.origin) {
+        if (link && url.origin === base.origin && canvasLinkNavigation(url.href, base.href)) {
           element.setAttribute("data-moofie-link", url.href);
-          element.setAttribute("href", "#");
         } else if (name === "src" && ["IMG", "VIDEO", "AUDIO", "SOURCE"].includes(element.tagName) && url.origin === base.origin) {
           const destination = canvasLinkNavigation(url.href, base.href);
           if (destination?.moofieViewer?.type === "file") {
@@ -57,8 +56,9 @@ export function sanitizeCourseHtml(value, baseUrl, hostWindow = window) {
       if (url.origin === base.origin) {
         const link = document.createElement("a");
         link.textContent = element.getAttribute("title") || "Open course document";
-        link.href = "#";
-        link.setAttribute("data-moofie-link", url.href);
+        link.href = url.href;
+        if (canvasLinkNavigation(url.href, base.href)) link.setAttribute("data-moofie-link", url.href);
+        else { link.target = "_blank"; link.rel = "noreferrer noopener"; }
         element.replaceWith(link);
       } else {
         const frame = document.createElement("iframe");
@@ -76,7 +76,7 @@ export function sanitizeCourseHtml(value, baseUrl, hostWindow = window) {
   });
   if (!purifiers.has(hostWindow)) purifiers.set(hostWindow, createDOMPurify(hostWindow));
   return purifiers.get(hostWindow).sanitize(document.body, {
-    ADD_TAGS: ["iframe"], ADD_ATTR: ["sandbox", "allowfullscreen", "referrerpolicy", "loading"],
+    ADD_TAGS: ["iframe"], ADD_ATTR: ["sandbox", "allowfullscreen", "referrerpolicy", "loading", "target"],
     FORBID_TAGS: ["form", "input", "button", "style", "script", "object", "embed"],
     FORBID_ATTR: ["srcdoc"],
   });

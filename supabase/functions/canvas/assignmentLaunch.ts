@@ -72,3 +72,17 @@ export async function resolveAssignmentLaunch(launchUrl: string, canvasUrl: stri
   }
   throw new Error("Canvas could not prepare this tool launch. Please try again.");
 }
+
+export async function loadModuleToolLaunch(canvasUrl: string, courseId: number, moduleId: number, itemId: number,
+  readApi: (path: string) => Promise<any>, resolve = resolveAssignmentLaunch) {
+  // Read through the course/module endpoint, so another course's item cannot
+  // be substituted into this launch request.
+  const item = await readApi(`/api/v1/courses/${courseId}/modules/${moduleId}/items/${itemId}`);
+  if (Number(item.id) !== itemId || item.type !== "ExternalTool" || item.locked_for_user || item.content_details?.locked_for_user) {
+    throw new Error("This module tool is not available to launch.");
+  }
+  const params = new URLSearchParams({ launch_type: "module_item", module_item_id: String(itemId) });
+  const launch = await readApi(`/api/v1/courses/${courseId}/external_tools/sessionless_launch?${params}`);
+  if (!launch?.url) throw new Error("Canvas could not prepare this tool launch. Please try again.");
+  return resolve(launch.url, canvasUrl);
+}

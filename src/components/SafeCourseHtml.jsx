@@ -29,12 +29,11 @@ export function SafeCourseHtml({ html, baseUrl }) {
     return () => { active = false; urls.forEach(url => URL.revokeObjectURL(url)); };
   }, [safeHtml, baseUrl]);
   function followLink(event) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const link = event.target.closest("a[data-moofie-link]");
     if (!link || !root.current?.contains(link)) return;
-    event.preventDefault();
     const patch = canvasLinkNavigation(link.getAttribute("data-moofie-link"), baseUrl, link.textContent.trim());
-    if (patch) writeNavigation(patch);
-    else setError("This Canvas link does not identify a supported course page, file, assignment, quiz, or tool.");
+    if (patch) { event.preventDefault(); writeNavigation(patch); }
   }
   return <>{safeHtml ? <div ref={root} className="native-course-html" onClick={followLink} dangerouslySetInnerHTML={{ __html: safeHtml }} /> : <p className="native-course-empty">No additional details were provided.</p>}{error && <p role="alert" className="home-resource-error">{error}</p>}</>;
 }

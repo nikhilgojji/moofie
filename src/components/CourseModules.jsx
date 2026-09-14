@@ -8,7 +8,7 @@ export function CourseModules({ modules, renderItem }) {
     <div className="home-modules-list">
       {modules.map(module => <details key={module.id} open={!collapsed[module.id]}>
         <summary onClick={event => { event.preventDefault(); setCollapsed(current => ({ ...current, [module.id]: !current[module.id] })); }}><span>{module.name}</span><small>{module.items.length} {module.items.length === 1 ? "item" : "items"}</small></summary>
-        <div className="module-items">{module.items.length ? module.items.map(item => <div className="module-item" key={item.id} style={{ paddingInlineStart: `${Math.max(0, Math.min(Number(item.indent) || 0, 5)) * 16}px` }}>{renderItem(item)}</div>) : <p className="home-resource-empty">This module is empty.</p>}</div>
+        <div className="module-items">{module.items.length ? module.items.map(item => <div className="module-item" key={item.id} style={{ paddingInlineStart: `${Math.max(0, Math.min(Number(item.indent) || 0, 5)) * 16}px` }}>{renderItem(item, module)}</div>) : <p className="home-resource-empty">This module is empty.</p>}</div>
       </details>)}
       {!modules.length && <p className="home-resource-empty">No modules are available.</p>}
     </div>

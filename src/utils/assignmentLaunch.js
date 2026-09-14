@@ -2,8 +2,8 @@ export async function openAssignmentLaunch(loadLaunch, browser = window) {
   const tab = browser.open("about:blank", "_blank");
   if (!tab) throw new Error("Allow pop-ups for Moofie, then try opening the assignment again.");
   tab.opener = null;
-  tab.document.title = "Opening assignment";
-  tab.document.body.textContent = "Opening assignment…";
+  tab.document.title = "Opening course content";
+  tab.document.body.textContent = "Opening course content…";
   try {
     const launch = await loadLaunch();
     if (tab.closed) return;

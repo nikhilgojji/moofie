@@ -2,9 +2,30 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
-import { extractAssignmentLaunch, resolveAssignmentLaunch } from "../../supabase/functions/canvas/assignmentLaunch.ts";
+import { extractAssignmentLaunch, resolveAssignmentLaunch, loadModuleToolLaunch } from "../../supabase/functions/canvas/assignmentLaunch.ts";
 
 const canvasOrigin = "https://canvas.example";
+
+test('module launches validate the course and module before requesting that exact item context', async () => {
+  const paths = [];
+  const result = await loadModuleToolLaunch(canvasOrigin, 4, 8, 99, async path => {
+    paths.push(path);
+    return paths.length === 1 ? { id: 99, type: 'ExternalTool' } : { url: canvasOrigin + '/signed-module-launch' };
+  }, async (url, base) => ({ url, base }));
+  assert.equal(paths[0], '/api/v1/courses/4/modules/8/items/99');
+  const query = new URL(paths[1], canvasOrigin).searchParams;
+  assert.equal(query.get('launch_type'), 'module_item');
+  assert.equal(query.get('module_item_id'), '99');
+  assert.deepEqual(result, { url: canvasOrigin + '/signed-module-launch', base: canvasOrigin });
+});
+
+test('locked, mismatched and non-tool module items never launch', async () => {
+  for (const item of [{ id: 98, type: 'ExternalTool' }, { id: 99, type: 'File' }, { id: 99, type: 'ExternalTool', content_details: { locked_for_user: true } }]) {
+    let requests = 0;
+    await assert.rejects(loadModuleToolLaunch(canvasOrigin, 4, 8, 99, async () => { requests++; return item; }));
+    assert.equal(requests, 1);
+  }
+});
 const canvasForm = `<form id="tool_form_abc" action="https://provider.example/oidc?one=1&amp;two=2" method="POST" data-tool-launch-type="window">
 <input type="hidden" name="iss" value="https://canvas.example">
 <input type="hidden" name="login_hint" value="signed-user-hint">
