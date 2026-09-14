@@ -178,7 +178,7 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .home-course-picker button:is(:hover, :focus-visible) .course-picker-open { color: var(--accent); }
 .home-course-picker button:is(:hover, :focus-visible) svg { transform: translateX(4px); }
 
-.home-content.is-course-open, .course-content-layout { width: calc(100% - 64px); }
+.home-content.is-course-open, .course-content-layout { width: min(1200px, calc(100% - 64px)); }
 .home-course-heading, .course-content-identity {
   padding: 0 12px 26px;
   border: 0;
