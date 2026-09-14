@@ -111,6 +111,11 @@ export function loadAssignmentDetails(courseId, assignmentId) {
   return callCanvasFunction("assignment_details", { courseId, assignmentId });
 }
 
+export function loadAssignmentLaunch(courseId, assignmentId) {
+  // Single-use launches are always fresh, with no cache or automatic replay.
+  return invokeCanvasFunction("assignment_details", { courseId, assignmentId, launch: true });
+}
+
 export function submitAssignment(courseId, assignmentId, submission) {
   return callCanvasFunction("submit_assignment", {
     courseId,

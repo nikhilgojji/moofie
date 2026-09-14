@@ -3,6 +3,7 @@ import { loadFilePreview } from "./filePreview.ts";
 import { mapCoursePerson, loadCoursePerson } from "./coursePeople.ts";
 import { completeModules, moduleExternalUrl } from "./courseModules.ts";
 import { readToolContent } from "./toolContent.ts";
+import { resolveAssignmentLaunch } from "./assignmentLaunch.ts";
 // This Supabase Edge Function is the security boundary between the browser,
 // Supabase, and Canvas. It authenticates Moofie users, encrypts Canvas tokens,
 // and returns only the course data the frontend needs.
@@ -1153,6 +1154,13 @@ Deno.serve(async (request) => {
         return respond({ error: "Choose a valid assignment." }, 400);
       }
       if (body.action === "assignment_details") {
+        if (body.launch === true) {
+          const details = await assignmentDetails(connection.canvas_url, token, courseId, assignmentId);
+          if (!details.externalLaunchUrl) return respond({ error: "Canvas could not prepare this tool launch. Please try again." }, 502);
+          return new Response(JSON.stringify(await resolveAssignmentLaunch(details.externalLaunchUrl, connection.canvas_url)), {
+            headers: { ...headers, "Content-Type": "application/json", "Cache-Control": "no-store" },
+          });
+        }
         return respond(
           await assignmentDetails(connection.canvas_url, token, courseId, assignmentId),
         );

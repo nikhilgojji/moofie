@@ -11,6 +11,7 @@ import { SafeCourseHtml } from "./components/SafeCourseHtml";
 import { quizMetadata } from "./utils/quizDisplay";
 import { courseContentSection } from "./utils/courseHome";
 import { CourseModules } from "./components/CourseModules";
+import { ExternalAssignmentLaunch } from "./components/ExternalAssignmentLaunch";
 import { ContentSkeleton } from "./components/ContentSkeleton";
 import { CourseQuizzes } from "./components/CourseQuizzes";
 import { sortCourseAssignments } from "./utils/assignmentOrder";
@@ -1314,10 +1315,8 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
                   ) : (
                     <p className="native-course-empty">Your instructor did not add written instructions.</p>
                   )}
-                  {isExternalToolAssignment && (item?.externalLaunchUrl || item?.htmlUrl) && !detailsLoading && (
-                    <a className="external-assignment-link" href={item.externalLaunchUrl || item.htmlUrl} rel="noreferrer" target="_blank">
-                      Open {item.title}{item.externalLaunchUrl ? "" : " in Canvas"}
-                    </a>
+                  {isExternalToolAssignment && !detailsLoading && (
+                    <ExternalAssignmentLaunch key={`${viewer.courseId}:${item.id}`} courseId={viewer.courseId} assignmentId={item.id} title={item.title} canvasUrl={item.htmlUrl} />
                   )}
                 </section>
               </div>
