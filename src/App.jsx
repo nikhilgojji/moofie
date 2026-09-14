@@ -1314,9 +1314,9 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
                   ) : (
                     <p className="native-course-empty">Your instructor did not add written instructions.</p>
                   )}
-                  {isExternalToolAssignment && item?.externalLaunchUrl && !detailsLoading && (
-                    <a className="external-assignment-link" href={item.externalLaunchUrl} rel="noreferrer" target="_blank">
-                      Open {item.title}
+                  {isExternalToolAssignment && (item?.externalLaunchUrl || item?.htmlUrl) && !detailsLoading && (
+                    <a className="external-assignment-link" href={item.externalLaunchUrl || item.htmlUrl} rel="noreferrer" target="_blank">
+                      Open {item.title}{item.externalLaunchUrl ? "" : " in Canvas"}
                     </a>
                   )}
                 </section>

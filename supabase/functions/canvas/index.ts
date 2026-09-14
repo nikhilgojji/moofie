@@ -765,8 +765,8 @@ async function assignmentDetails(
   );
   if (!mapped.submissionTypes.includes("external_tool")) return mapped;
 
-  const params = new URLSearchParams({ assignment_id: String(assignmentId) });
-  if (mapped.externalToolUrl) params.set("url", mapped.externalToolUrl);
+  // Assessment launches preserve the assignment's resource link and custom LTI fields.
+  const params = new URLSearchParams({ launch_type: "assessment", assignment_id: String(assignmentId) });
   const launch = await optionalCanvasRequest(
     canvasUrl,
     `/api/v1/courses/${courseId}/external_tools/sessionless_launch?${params.toString()}`,
@@ -774,7 +774,7 @@ async function assignmentDetails(
   );
   return {
     ...mapped,
-    externalLaunchUrl: safeLink(launch?.url) || mapped.externalToolUrl,
+    externalLaunchUrl: safeLink(launch?.url),
   };
 }
 
