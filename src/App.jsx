@@ -8,7 +8,8 @@ import { clearCanvasReadCache } from "./canvasApi";
 import { CoursePerson } from "./components/CoursePerson";
 import { canvasLinkNavigation } from "./utils/canvasLinks";
 import { SafeCourseHtml } from "./components/SafeCourseHtml";
-import { quizMetadata } from "./utils/quizDisplay";
+import { quizAssignmentNavigation } from "./utils/quizAssignment";
+import { CourseQuizDetails } from "./components/CourseQuizDetails";
 import { courseContentSection } from "./utils/courseHome";
 import { CourseModules } from "./components/CourseModules";
 import { ExternalAssignmentLaunch } from "./components/ExternalAssignmentLaunch";
@@ -879,7 +880,7 @@ function SubmittedAttachment({ attachment, courseId }) {
   </div>;
 }
 
-function CourseContentViewer({ viewer, loading, error, chrome }) {
+export function CourseContentViewer({ viewer, loading, error, chrome }) {
   const originalItem = viewer?.item;
   const routeRef = useRef(null);
   const [pageLoading, setPageLoading] = useState(false);
@@ -915,7 +916,7 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
     const force = requestedRevision.current !== contentRevision;
     requestedRevision.current = contentRevision;
     const pageRequest = viewer?.type === "page" && (originalItem?.body == null || force) && originalItem?.pageUrl;
-    const contentRequest = (originalItem?.needsDetails || force) && ["quiz", "discussion", "file"].includes(viewer?.type);
+    const contentRequest = (originalItem?.needsDetails || force || viewer?.type === "quiz" && !originalItem?.action) && ["quiz", "discussion", "file"].includes(viewer?.type);
     if (!pageRequest && !contentRequest) return;
     let active = true;
     const entryId = readNavigation().moofieEntryId;
@@ -954,11 +955,18 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
     }
     if (viewer?.type !== "assignment" || !viewer.courseId || !originalItem?.id) return;
 
+    const quizRoute = quizAssignmentNavigation(viewer, originalItem);
+    if (quizRoute) { writeNavigation(quizRoute, { replace: true }); return; }
+
     let active = true;
     setDetailsLoading(true);
     loadAssignmentDetails(viewer.courseId, originalItem.id)
       .then((details) => {
-        if (active) setAssignment(details);
+        if (active) {
+          const quizRoute = quizAssignmentNavigation(viewer, details);
+          if (quizRoute) writeNavigation(quizRoute, { replace: true });
+          else setAssignment(details);
+        }
       })
       .catch((requestError) => {
         if (active) {
@@ -1196,7 +1204,7 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
 
         <div className="course-viewer-body">
           {pageError && !originalItem?.needsDetails && (viewer?.type !== "page" || originalItem?.body != null) && <p className="course-sync-notice" role="status">This content could not refresh. Showing the last successful load. <button type="button" onClick={() => setContentRevision(value => value + 1)}>Check Canvas now</button></p>}
-          {loading || pageLoading ? (
+          {loading || pageLoading || viewer?.type === "assignment" && detailsLoading ? (
             <ContentSkeleton label="Loading course content…" variant="list" />
           ) : error || pageError && (originalItem?.needsDetails || viewer?.type === "page" && originalItem?.body == null) ? (
             <div className="home-resource-error">{error || pageError}</div>
@@ -1344,7 +1352,8 @@ function CourseContentViewer({ viewer, loading, error, chrome }) {
             </article>
           ) : (
             viewer?.type === "course-tool" ? <CourseTool key={`${viewer.courseId}:${item?.toolId}`} courseId={viewer.courseId} toolId={item?.toolId} title={item?.title} renderPdf={(blob, name) => <PdfPreview fileBlob={blob} name={name} />} /> :
-            <>{viewer?.type === "quiz" && <div className="quiz-detail-meta">{quizMetadata(item || {}).map((label, index) => <span key={index}>{label}</span>)}</div>}<SafeCourseHtml html={item?.body || item?.message || item?.description} baseUrl={item?.htmlUrl || viewer?.baseUrl} /></>
+            viewer?.type === "quiz" ? <CourseQuizDetails quiz={item || {}} baseUrl={viewer.baseUrl} /> :
+            <SafeCourseHtml html={item?.body || item?.message || item?.description} baseUrl={item?.htmlUrl || viewer?.baseUrl} />
           )}
         </div>
         </section>

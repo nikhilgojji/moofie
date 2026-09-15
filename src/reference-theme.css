@@ -306,6 +306,9 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .connect-page .access-form .text-button:hover, .connect-page .access-form summary:hover { color: #fff; text-decoration: underline; }
 .connect-page .access-form :is(.text-button, summary):focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 2px; }
 .submit-button, .submit-assignment-button { border-radius: 4px; }
+.quiz-launch { display: flex; justify-content: center; padding: 32px 0; }
+.quiz-launch a { display: inline-block; padding: 12px 18px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-soft); color: var(--text-strong); text-decoration: none; }
+.quiz-launch a:hover { background: var(--panel-hover); }
 .submit-assignment-button { background: var(--panel-soft); color: var(--text-strong); border-color: var(--line); }
 .submit-assignment-button:hover:not(:disabled) { background: var(--panel-hover); color: var(--text-strong); border-color: var(--text); }
 .external-assignment-launch > button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-soft); color: var(--text-strong); font: inherit; cursor: pointer; }

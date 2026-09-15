@@ -4,6 +4,7 @@ import { mapCoursePerson, loadCoursePerson } from "./coursePeople.ts";
 import { completeModules, moduleExternalUrl } from "./courseModules.ts";
 import { readToolContent } from "./toolContent.ts";
 import { resolveAssignmentLaunch, loadModuleToolLaunch } from "./assignmentLaunch.ts";
+import { quizDetails } from "./quizDetails.ts";
 // This Supabase Edge Function is the security boundary between the browser,
 // Supabase, and Canvas. It authenticates Moofie users, encrypts Canvas tokens,
 // and returns only the course data the frontend needs.
@@ -317,6 +318,8 @@ function mapAssignment(
     groupPosition,
     position: Number(assignment.position ?? 0),
     title: assignment.name,
+    quizId: assignment.quiz_id ?? null,
+    isQuizAssignment: Boolean(assignment.is_quiz_assignment || assignment.quiz_id),
     description: assignment.description || "",
     submissionTypes: Array.isArray(assignment.submission_types)
       ? assignment.submission_types
@@ -1110,7 +1113,8 @@ Deno.serve(async (request) => {
         ));
         const item = (await canvasRequest(connection.canvas_url, "/api/v1/courses/" + courseId + "/" + routes[kind] + "/" + contentId, token)).data;
         if (kind === "file") return respond({ id: item.id, name: item.display_name || item.filename, contentType: item["content-type"], size: item.size, updatedAt: item.updated_at, locked: Boolean(item.locked_for_user || item.hidden_for_user), url: safeLink(item.url), previewUrl: safeLink(item.preview_url) });
-        if (kind === "quiz") return respond({ id: item.id, title: item.title, description: item.description || "", dueAt: item.due_at || null, lockAt: item.lock_at || null, unlockAt: item.unlock_at || null, locked: Boolean(item.locked_for_user), lockExplanation: item.lock_explanation || null, questionCount: item.question_count ?? null, points: item.points_possible ?? null, quizType: item.quiz_type, htmlUrl: safeLink(item.html_url, connection.canvas_url) });
+        if (kind === "quiz") return respond(await quizDetails(item, courseId, connection.canvas_url,
+          async path => (await canvasRequest(connection.canvas_url, path, token)).data));
         return respond({ id: item.id, title: item.title, message: item.message || "", authorName: item.author?.display_name || "", authorAvatarUrl: safeLink(item.author?.avatar_image_url), postedAt: item.posted_at || item.created_at, locked: Boolean(item.locked_for_user), htmlUrl: safeLink(item.html_url, connection.canvas_url) });
       }
 

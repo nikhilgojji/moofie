@@ -19,3 +19,10 @@ test("empty comments and unavailable comments are distinct", () => {
   assert.deepEqual(mapAssignment({ submission: { submission_comments: [] } }, 1, 1, 0).submission.comments, []);
   assert.equal(mapAssignment({ submission: {} }, 1, 1, 0).submission.comments, null);
 });
+
+test('Canvas quiz identity survives assignment mapping even when the gradebook has no submitted attempt', () => {
+  const mapped = mapAssignment({ id: 72, name: 'Lecture quiz 2', quiz_id: 91, is_quiz_assignment: true, submission_types: ['online_quiz'], submission: { workflow_state: 'unsubmitted' } }, 39, 10, 0);
+  assert.equal(mapped.quizId, 91);
+  assert.equal(mapped.isQuizAssignment, true);
+  assert.equal(mapped.id, 72);
+});
