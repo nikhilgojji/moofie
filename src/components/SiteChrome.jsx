@@ -1,7 +1,6 @@
 // Shared page chrome lives here so every screen uses the same navigation,
 // theme behavior, footer links, and account controls.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SyncStatus } from "./SyncStatus";
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -96,7 +95,7 @@ export function SiteFooter() {
 export function SignedInNav({
   data,
   user,
-  activeView = "home",
+  activeView = "grades",
   onNavigate,
   disconnect,
   signOut,
@@ -224,20 +223,12 @@ export function SignedInNav({
         onClick={(event) => {
           if (!onNavigate) return;
           event.preventDefault();
-          onNavigate("home");
+          onNavigate("grades");
         }}
       >
         <span>Moofie</span>
       </a>
       <nav className="app-view-nav" aria-label="Moofie sections">
-        <button
-          className={activeView === "home" ? "is-active" : ""}
-          type="button"
-          aria-current={activeView === "home" ? "page" : undefined}
-          onClick={() => onNavigate?.("home")}
-        >
-          Home
-        </button>
         <button
           className={activeView === "grades" ? "is-active" : ""}
           type="button"
@@ -248,7 +239,6 @@ export function SignedInNav({
         </button>
       </nav>
       <div className="signed-in-nav-actions">
-        <SyncStatus checkedAt={data?._sync?.checkedAt} courses={data.courses} />
         <details
           className="notifications-menu"
           ref={notificationsMenuRef}

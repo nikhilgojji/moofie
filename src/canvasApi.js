@@ -1,20 +1,9 @@
 import { supabase } from "./supabase";
-import { createRequestCache } from "./utils/requestCache";
 import { recoverCanvasRead, resetCanvasSync } from "./utils/canvasSync";
-import { classifyIssue, reportIssue } from "./utils/issueReporting";
 
-const courseReads = createRequestCache();
-export function clearCanvasReadCache() { courseReads.clear(); }
 supabase?.auth.onAuthStateChange(event => {
-  if (event === "SIGNED_OUT" || event === "SIGNED_IN") { clearCanvasReadCache(); resetCanvasSync(); }
+  if (event === "SIGNED_OUT" || event === "SIGNED_IN") resetCanvasSync();
 });
-
-async function readCourse(action, payload, options) {
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Sign in to load your course.");
-  return courseReads.read(session.user.id, JSON.stringify([action, payload]), () => callCanvasFunction(action, payload), options);
-}
 
 const REQUEST_TIMEOUT_MS = 45_000;
 
@@ -72,74 +61,15 @@ export function loadCanvasDashboard() {
   return callCanvasFunction("dashboard");
 }
 
-// Load navigation content for one Canvas course only when the user opens it.
-export function loadCourseResources(courseId, options) {
-  return readCourse("course_resources", { courseId, includePeople: false }, options);
-}
-
-export function loadCoursePeople(courseId) {
-  return readCourse("course_resources", { courseId, part: "people" });
-}
-
-export function loadCoursePage(courseId, pageUrl, options) {
-  return readCourse("course_page", { courseId, pageUrl }, options);
-}
-
-export function loadCourseContent(courseId, kind, contentId) {
-  return readCourse("course_content", { courseId, kind, contentId });
-}
-
-export function loadCourseTool(courseId, toolId) {
-  return callCanvasFunction("course_tool", { courseId, toolId });
-}
-
-export function loadCourseFilePreview(courseId, fileId) {
-  // Signed document sessions expire: obtain a fresh one on open or retry.
-  return callCanvasFunction("course_file", { courseId, fileId, preview: true });
-}
-
-export async function loadCourseFile(courseId, fileId, contentType) {
-  const data = await callCanvasFunction("course_file", { courseId, fileId });
-  if (!(data instanceof Blob)) {
-    throw new Error("Moofie received an invalid file from Canvas.");
-  }
-  return new Blob([data], {
-    type: contentType || "application/octet-stream",
-  });
-}
-
-export function loadAssignmentDetails(courseId, assignmentId) {
-  return callCanvasFunction("assignment_details", { courseId, assignmentId });
-}
-
-export async function loadAssignmentLaunch(courseId, assignmentId) {
-  // Single-use launches are always fresh, with no cache or automatic replay.
-  try { return await invokeCanvasFunction("assignment_details", { courseId, assignmentId, launch: true }); }
-  catch (error) { reportIssue({ area: "assignment_details", code: classifyIssue(error) }); throw error; }
-}
-
-export async function loadModuleLaunch(courseId, moduleId, contentId) {
-  try { return await invokeCanvasFunction("course_content", { courseId, moduleId, contentId, kind: "module-launch" }); }
-  catch (error) { reportIssue({ area: "course_content", code: classifyIssue(error) }); throw error; }
-}
-
-export function submitAssignment(courseId, assignmentId, submission) {
-  return callCanvasFunction("submit_assignment", {
-    courseId,
-    assignmentId,
-    submission,
-  });
-}
-
 // Validate and securely store a Canvas URL and personal access token.
 export function connectCanvasAccount(canvasUrl, token) {
-  clearCanvasReadCache();
+  resetCanvasSync();
   return callCanvasFunction("connect", { canvasUrl, token });
 }
 
 // Remove only the saved Canvas connection while keeping the Moofie account.
 export function disconnectCanvasAccount() {
-  clearCanvasReadCache();
+  resetCanvasSync();
   return callCanvasFunction("disconnect");
 }
 

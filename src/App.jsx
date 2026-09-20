@@ -1,44 +1,12 @@
-import { DocumentToolbar, useDocumentFullscreen } from "./components/DocumentToolbar";
-import { FilePreview, FileDownload, useFilePreview } from "./components/FilePreview";
-import { courseSectionStatus, mergeCourseResources, startCanvasAutoRefresh, updateCanvasCoverage } from "./utils/canvasSync";
-import { startCourseCoverage } from "./utils/courseCoverage";
-import { CourseAvatar as CourseAuthorAvatar } from "./components/CourseAvatar";
-import { CoursePeoplePanel } from "./components/CoursePeoplePanel";
-import { clearCanvasReadCache } from "./canvasApi";
-import { CoursePerson } from "./components/CoursePerson";
-import { canvasLinkNavigation } from "./utils/canvasLinks";
-import { SafeCourseHtml } from "./components/SafeCourseHtml";
-import { quizAssignmentNavigation } from "./utils/quizAssignment";
-import { CourseQuizDetails } from "./components/CourseQuizDetails";
-import { courseContentSection } from "./utils/courseHome";
-import { CourseModules } from "./components/CourseModules";
-import { ExternalAssignmentLaunch } from "./components/ExternalAssignmentLaunch";
-import { ContentSkeleton } from "./components/ContentSkeleton";
-import { CourseQuizzes } from "./components/CourseQuizzes";
-import { sortCourseAssignments } from "./utils/assignmentOrder";
-import { CourseSyllabus } from "./components/CourseSyllabus";
-import { CourseDiscussions } from "./components/CourseDiscussions";
+import { startCanvasAutoRefresh } from "./utils/canvasSync";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { closedContent, readNavigation, useHistoryState, useNavigationScroll, writeNavigation } from "./utils/navigation";
-import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
-import { pdfErrorMessage, readPdfBytes } from "./utils/pdfSource";
-import { buildCourseNavigation } from "./utils/courseNavigation";
-import { CourseNavigation } from './components/CourseNavigation';
-import { reportIssue } from './utils/issueReporting';
+import { readNavigation, useHistoryState, useNavigationScroll, writeNavigation } from "./utils/navigation";
 import {
   connectCanvasAccount,
   deleteMoofieAccount,
   disconnectCanvasAccount,
-  loadAssignmentDetails,
   loadCanvasDashboard,
-  loadCoursePage,
-  loadCourseContent,
-  loadCourseResources,
-  submitAssignment as submitCanvasAssignment,
 } from "./canvasApi";
-import { CourseAssignments, CourseFiles } from "./components/CourseLists";
-import { CourseTool } from "./components/CourseTool";
 import { PublicNav, SignedInNav, SiteFooter } from "./components/SiteChrome";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import {
@@ -428,12 +396,22 @@ function GradeSummary({ courses, activeFilter, completed, onToggle }) {
   );
 }
 
+function AssignmentLink({ assignment, className, children }) {
+  let href;
+  try {
+    const url = new URL(assignment.htmlUrl);
+    if (url.protocol === "https:" && !assignment.manual) href = url.href;
+  } catch { /* Assignments without a Canvas URL remain readable. */ }
+  return href
+    ? <a className={className} href={href} target="_blank" rel="noopener noreferrer" title="Open in Canvas">{children}</a>
+    : <span className={className}>{children}</span>;
+}
+
 function AssignmentPreview({
   type,
   items,
   completed,
   onToggleCompleted,
-  onOpenAssignment,
 }) {
   if (!type) return null;
 
@@ -531,13 +509,9 @@ function AssignmentPreview({
                   )}
                 </button>
 
-                <button
-                  className="assignment-preview-copy"
-                  type="button"
-                  onClick={() => onOpenAssignment(course, assignment)}
-                >
+                <AssignmentLink assignment={assignment} className="assignment-preview-copy">
                   {details}
-                </button>
+                </AssignmentLink>
 
                 <b aria-hidden="true">›</b>
               </div>
@@ -546,1441 +520,6 @@ function AssignmentPreview({
         </div>
       )}
     </section>
-  );
-}
-
-function formatResourceDate(value, includeTime = false) {
-  if (!value) return "Date unavailable";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    ...(includeTime
-      ? { hour: "numeric", minute: "2-digit" }
-      : {}),
-  }).format(new Date(value));
-}
-
-function formatModuleDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
-function formatFileSize(bytes) {
-  const value = Number(bytes) || 0;
-  if (value < 1_024) return `${value} B`;
-  if (value < 1_048_576) return `${(value / 1_024).toFixed(1)} KB`;
-  return `${(value / 1_048_576).toFixed(1)} MB`;
-}
-
-function announcementText(value) {
-  if (!value) return "No announcement details were provided.";
-  const document = new DOMParser().parseFromString(value, "text/html");
-  return document.body.textContent?.replace(/\s+/g, " ").trim() ||
-    "No announcement details were provided.";
-}
-
-function CourseRowChevron({ external = false }) {
-  return external ? (
-    <svg aria-hidden="true" viewBox="0 0 20 20">
-      <path d="M7 5h8v8M15 5 6 14" />
-    </svg>
-  ) : (
-    <svg aria-hidden="true" viewBox="0 0 20 20">
-      <path d="m8 5 5 5-5 5" />
-    </svg>
-  );
-}
-
-function CourseItemIcon({ type }) {
-  const normalizedType = String(type || "").toLowerCase();
-  if (normalizedType === "file") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="m9.5 12.5 5.8-5.8a3 3 0 0 1 4.2 4.2l-7.8 7.8a5 5 0 0 1-7.1-7.1l7.6-7.6" />
-      </svg>
-    );
-  }
-  if (normalizedType === "discussion") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="M20 15a4 4 0 0 1-4 4H9l-5 3v-7a4 4 0 0 1-1-2.6V8a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4Z" />
-      </svg>
-    );
-  }
-  if (normalizedType === "quiz") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.2.9-1.2 1.8M12 17h.01" />
-      </svg>
-    );
-  }
-  if (normalizedType === "assignment") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="M8 4h8M9 3v3h6V3M7 5H5v16h14V5h-2M8 13l2.5 2.5L16 10" />
-      </svg>
-    );
-  }
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M6 3h8l4 4v14H6Z" />
-      <path d="M14 3v5h4M9 12h6M9 16h6" />
-    </svg>
-  );
-}
-
-function ResourceRow({ href, onClick, children, className = "" }) {
-  const classes = `home-resource-row ${className}`.trim();
-  if (onClick) {
-    return (
-      <button className={classes} type="button" onClick={onClick}>
-        {children}
-        <span className="home-resource-arrow"><CourseRowChevron /></span>
-      </button>
-    );
-  }
-  return href ? (
-    <a className={classes} href={href} rel="noreferrer" target="_blank">
-      {children}
-      <span className="home-resource-arrow"><CourseRowChevron external /></span>
-    </a>
-  ) : (
-    <div className={classes}>{children}</div>
-  );
-}
-
-function fileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Moofie could not read that file."));
-    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-    reader.readAsDataURL(file);
-  });
-}
-
-function PdfPageCanvas({ pdfDocument, pageNumber, rotation, scale, setPageElement }) {
-  const canvasRef = useRef(null);
-  const [rendering, setRendering] = useState(true);
-  const [pageError, setPageError] = useState("");
-
-  useEffect(() => {
-    if (!pdfDocument || !canvasRef.current) return undefined;
-    let active = true;
-    let renderTask = null;
-    setRendering(true);
-    setPageError("");
-
-    pdfDocument.getPage(pageNumber)
-      .then((page) => {
-        if (!active || !canvasRef.current) return null;
-        const viewport = page.getViewport({
-          scale,
-          rotation: (page.rotate + rotation) % 360,
-        });
-        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-        const canvas = canvasRef.current;
-        const context = canvas.getContext("2d", { alpha: false });
-        canvas.width = Math.floor(viewport.width * pixelRatio);
-        canvas.height = Math.floor(viewport.height * pixelRatio);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        renderTask = page.render({
-          canvasContext: context,
-          viewport,
-          transform: pixelRatio === 1 ? null : [pixelRatio, 0, 0, pixelRatio, 0, 0],
-        });
-        return renderTask.promise;
-      })
-      .then(() => {
-        if (active) setRendering(false);
-      })
-      .catch((error) => {
-        if (active && error?.name !== "RenderingCancelledException") {
-          reportIssue({ area: 'preview', kind: 'pdf', code: 'render' });
-          setPageError(`Page ${pageNumber} could not be displayed.`);
-          setRendering(false);
-        }
-      });
-
-    return () => {
-      active = false;
-      renderTask?.cancel();
-    };
-  }, [pageNumber, pdfDocument, rotation, scale]);
-
-  return (
-    <article
-      className="moofie-pdf-page"
-      ref={(element) => setPageElement(pageNumber, element)}
-      aria-label={`Page ${pageNumber}`}
-      aria-busy={rendering}
-    >
-      {rendering && <ContentSkeleton label={`Loading page ${pageNumber}`} variant="document" />}
-      {pageError && <p>{pageError}</p>}
-      <canvas ref={canvasRef} aria-label={`PDF page ${pageNumber}`} />
-    </article>
-  );
-}
-
-function PdfPreview({ fileUrl, fileBlob, name }) {
-  const stageRef = useRef(null);
-  const fullscreen = useDocumentFullscreen(stageRef);
-  const pagesRef = useRef(null);
-  const pageElementsRef = useRef([]);
-  const scrollFrameRef = useRef(0);
-  const [pdfDocument, setPdfDocument] = useState(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1);
-  const [rotation, setRotation] = useState(0);
-  const [autoFit, setAutoFit] = useState(true);
-  const [previewError, setPreviewError] = useState("");
-  const [retryVersion, setRetryVersion] = useState(0);
-
-  useEffect(() => {
-    if (!fileBlob) return undefined;
-    let active = true;
-    let loadingTask = null;
-    setPdfDocument(null);
-    setPageNumber(1);
-    setRotation(0);
-    setAutoFit(true);
-    setPreviewError("");
-    async function loadPdf() {
-      try {
-        const [pdfjs, bytes] = await Promise.all([
-          import("pdfjs-dist/legacy/build/pdf.mjs"),
-          readPdfBytes(fileBlob),
-        ]);
-        if (!active) return;
-        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-        loadingTask = pdfjs.getDocument({ data: bytes, isEvalSupported: false });
-        const nextDocument = await loadingTask.promise;
-        if (active) setPdfDocument(nextDocument);
-      } catch (error) {
-        if (active) {
-          reportIssue({ area: 'preview', kind: 'pdf', code: 'render' });
-          setPreviewError(pdfErrorMessage(error));
-        }
-      }
-    }
-
-    loadPdf();
-    return () => {
-      active = false;
-      loadingTask?.destroy().catch(() => {});
-    };
-  }, [fileBlob, retryVersion]);
-
-  useEffect(() => {
-    if (!pdfDocument || !stageRef.current || !autoFit) return undefined;
-    let active = true;
-    let resizeFrame = 0;
-
-    async function fitPage() {
-      const page = await pdfDocument.getPage(1);
-      if (!active || !stageRef.current) return;
-      const natural = page.getViewport({
-        scale: 1,
-        rotation: (page.rotate + rotation) % 360,
-      });
-      const horizontalPadding = window.innerWidth <= 760 ? 24 : 64;
-      const availableWidth = Math.max(280, stageRef.current.clientWidth - horizontalPadding);
-      const comfortablePageWidth = Math.min(920, availableWidth);
-      setScale(Math.min(1.4, Math.max(0.5, comfortablePageWidth / natural.width)));
-    }
-
-    fitPage();
-    const observer = new ResizeObserver(() => {
-      window.cancelAnimationFrame(resizeFrame);
-      resizeFrame = window.requestAnimationFrame(fitPage);
-    });
-    observer.observe(stageRef.current);
-    return () => {
-      active = false;
-      window.cancelAnimationFrame(resizeFrame);
-      observer.disconnect();
-    };
-  }, [autoFit, pdfDocument, rotation]);
-
-  useEffect(() => () => window.cancelAnimationFrame(scrollFrameRef.current), []);
-
-  const pageCount = pdfDocument?.numPages || 0;
-
-  function changeZoom(amount) {
-    setAutoFit(false);
-    setScale((current) => Math.min(3, Math.max(0.25, current + amount)));
-  }
-
-  function goToPage(nextPage) {
-    const targetPage = Math.min(pageCount || 1, Math.max(1, nextPage));
-    setPageNumber(targetPage);
-    const container = pagesRef.current;
-    const page = pageElementsRef.current[targetPage - 1];
-    if (container && page) {
-      container.scrollTo({ top: Math.max(0, page.offsetTop - 20), behavior: "smooth" });
-    }
-  }
-
-  function handlePagesScroll() {
-    window.cancelAnimationFrame(scrollFrameRef.current);
-    scrollFrameRef.current = window.requestAnimationFrame(() => {
-      const container = pagesRef.current;
-      if (!container) return;
-      const readingLine = container.scrollTop + Math.min(180, container.clientHeight * 0.3);
-      let visiblePage = 1;
-      pageElementsRef.current.forEach((page, index) => {
-        if (page && page.offsetTop <= readingLine) visiblePage = index + 1;
-      });
-      setPageNumber(visiblePage);
-    });
-  }
-
-  return (
-    <section className="moofie-pdf" ref={stageRef} aria-label={`${name} document`}>
-      <DocumentToolbar pageNumber={pageNumber} pageCount={pageCount} onPageChange={goToPage}
-        scale={scale} autoFit={autoFit} onZoom={changeZoom} onFit={() => setAutoFit(true)}
-        onRotate={() => setRotation(value => (value + 90) % 360)} fullscreen={fullscreen.fullscreen}
-        onFullscreen={fullscreen.toggle} downloadUrl={fileUrl} name={name} />
-      <div className="moofie-pdf-pages" ref={pagesRef} onScroll={handlePagesScroll}>
-        {fullscreen.error && <p role="status">{fullscreen.error}</p>}
-        {previewError ? <div className="moofie-pdf-error" role="alert"><p>{previewError}</p><button type="button" onClick={() => setRetryVersion(value => value + 1)}>Retry preview</button></div> : !pdfDocument && <ContentSkeleton label="Loading PDF" variant="document" />}
-        {pdfDocument && Array.from({ length: pageCount }, (_, index) => (
-          <PdfPageCanvas
-            key={index + 1}
-            pdfDocument={pdfDocument}
-            pageNumber={index + 1}
-            rotation={rotation}
-            scale={scale}
-            setPageElement={(number, element) => {
-              pageElementsRef.current[number - 1] = element;
-            }}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SubmittedAttachment({ attachment, courseId }) {
-  const [open, setOpen] = useState(false);
-  const preview = useFilePreview(courseId, attachment, open);
-  return <div className="submitted-attachment">
-    <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? "Hide" : "View"} {attachment.name}</button>
-    {open && <div className="assignment-submission-preview">
-      <FilePreview preview={preview} file={attachment} courseId={courseId} PdfPreview={PdfPreview} />
-      <FileDownload courseId={courseId} file={attachment} preview={preview}>Download {attachment.name}</FileDownload>
-    </div>}
-  </div>;
-}
-
-export function CourseContentViewer({ viewer, loading, error, chrome }) {
-  const originalItem = viewer?.item;
-  const routeRef = useRef(null);
-  const [pageLoading, setPageLoading] = useState(false);
-  const [pageError, setPageError] = useState("");
-  const [contentRevision, setContentRevision] = useState(0);
-  const requestedRevision = useRef(0);
-  useEffect(() => {
-    if (!viewer || viewer.type === "file") return;
-    const refresh = () => setContentRevision(value => value + 1);
-    const stop = startCanvasAutoRefresh(refresh);
-    window.addEventListener("moofie:refresh", refresh);
-    return () => { stop(); window.removeEventListener("moofie:refresh", refresh); };
-  }, [viewer?.courseId, viewer?.type, originalItem?.id]);
-  const readerCloseRef = useRef(null);
-  useEffect(() => {
-    if (viewer?.type !== "file") return;
-    const previousFocus = document.activeElement;
-    const app = document.querySelector(".app-frame");
-    const previousInert = app?.inert;
-    const previousOverflow = document.body.style.overflow;
-    if (app) app.inert = true;
-    document.body.style.overflow = "hidden";
-    readerCloseRef.current?.focus();
-    return () => {
-      if (app) app.inert = previousInert;
-      document.body.style.overflow = previousOverflow;
-      if (previousFocus?.isConnected) previousFocus.focus();
-    };
-  }, [viewer?.type]);
-  useEffect(() => {
-    setPageLoading(false);
-    setPageError("");
-    const force = requestedRevision.current !== contentRevision;
-    requestedRevision.current = contentRevision;
-    const pageRequest = viewer?.type === "page" && (originalItem?.body == null || force) && originalItem?.pageUrl;
-    const contentRequest = (originalItem?.needsDetails || force || viewer?.type === "quiz" && !originalItem?.action) && ["quiz", "discussion", "file"].includes(viewer?.type);
-    if (!pageRequest && !contentRequest) return;
-    let active = true;
-    const entryId = readNavigation().moofieEntryId;
-    if (originalItem?.needsDetails || originalItem?.body == null) setPageLoading(true);
-    (pageRequest ? loadCoursePage(viewer.courseId, originalItem.pageUrl) : loadCourseContent(viewer.courseId, viewer.type, originalItem.id))
-      .then(page => {
-        if (active && readNavigation().moofieEntryId === entryId) {
-          writeNavigation({ moofieViewer: { ...viewer, item: page, baseUrl: page.htmlUrl } }, { replace: true });
-        }
-      })
-      .catch(requestError => { if (active) setPageError(requestError.message || "Moofie could not load this page."); })
-      .finally(() => { if (active) setPageLoading(false); });
-    return () => { active = false; };
-  }, [viewer?.courseId, viewer?.type, originalItem, contentRevision]);
-  const [assignment, setAssignment] = useState(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [detailsError, setDetailsError] = useState("");
-  const [submissionType, setSubmissionType] = useState("");
-  const [submissionFile, setSubmissionFile] = useState(null);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [submitSuccess, setSubmitSuccess] = useState("");
-  const filePreview = useFilePreview(viewer?.courseId, originalItem, viewer?.type === "file");
-  const filePreviewLoading = filePreview.loading;
-  const submissionPanelRef = useRef(null);
-  const assignmentIdentityRef = useRef("");
-
-  useEffect(() => {
-    setAssignment(current => current?.id === originalItem?.id ? current : originalItem || null);
-    setDetailsError("");
-    const identity = `${viewer?.courseId}:${originalItem?.id}`;
-    if (assignmentIdentityRef.current !== identity) {
-      assignmentIdentityRef.current = identity;
-      setSubmitError(""); setSubmitSuccess(""); setSubmissionFile(null); setIsDraggingFile(false);
-    }
-    if (viewer?.type !== "assignment" || !viewer.courseId || !originalItem?.id) return;
-
-    const quizRoute = quizAssignmentNavigation(viewer, originalItem);
-    if (quizRoute) { writeNavigation(quizRoute, { replace: true }); return; }
-
-    let active = true;
-    setDetailsLoading(true);
-    loadAssignmentDetails(viewer.courseId, originalItem.id)
-      .then((details) => {
-        if (active) {
-          const quizRoute = quizAssignmentNavigation(viewer, details);
-          if (quizRoute) writeNavigation(quizRoute, { replace: true });
-          else setAssignment(details);
-        }
-      })
-      .catch((requestError) => {
-        if (active) {
-          setDetailsError(
-            requestError.message === "Unknown action."
-              ? ""
-              : requestError.message || "Moofie could not load the full assignment.",
-          );
-        }
-      })
-      .finally(() => {
-        if (active) setDetailsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [originalItem, viewer?.courseId, viewer?.type, contentRevision]);
-
-  useEffect(() => {
-    if (!viewer || pageLoading || detailsLoading || filePreviewLoading) return;
-    const frame = requestAnimationFrame(() => {
-      if (routeRef.current) routeRef.current.scrollTop = readNavigation().moofieContentScrollY || 0;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [viewer, pageLoading, detailsLoading, filePreviewLoading]);
-
-  useEffect(() => {
-    if (!viewer) return;
-    const closeOnEscape = event => {
-      if (event.key === "Escape") window.history.go(viewer.type === "file" ? -(viewer.readerDepth || 1) : -1);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [viewer]);
-
-  const item = viewer?.type === "assignment" ? assignment || originalItem : originalItem;
-  const supportedSubmissionTypes = (item?.submissionTypes || []).filter((type) =>
-    type === "online_upload",
-  );
-  const isExternalToolAssignment = (item?.submissionTypes || []).includes("external_tool");
-
-  useEffect(() => {
-    if (!supportedSubmissionTypes.length) {
-      setSubmissionType("");
-      return;
-    }
-    setSubmissionType((current) =>
-      supportedSubmissionTypes.includes(current) ? current : supportedSubmissionTypes[0],
-    );
-  }, [supportedSubmissionTypes.join("|")]);
-
-  if (!viewer && !loading && !error) return null;
-
-  async function handleAssignmentSubmit(event) {
-    event.preventDefault();
-    if (!viewer?.courseId || !item?.id || !submissionType) return;
-    if (!window.confirm(item.submitted ? "Submit a new attempt to Canvas?" : "Submit this assignment to Canvas?")) return;
-
-    setSubmitting(true);
-    setSubmitError("");
-    setSubmitSuccess("");
-    try {
-      const submission = { type: submissionType };
-      if (submissionType === "online_upload") {
-        if (!submissionFile) throw new Error("Choose a file to submit.");
-        if (submissionFile.size > 20_000_000) throw new Error("Choose a file smaller than 20 MB.");
-        submission.file = {
-          name: submissionFile.name,
-          contentType: submissionFile.type || "application/octet-stream",
-          base64: await fileAsBase64(submissionFile),
-        };
-      }
-      const updated = await submitCanvasAssignment(viewer.courseId, item.id, submission);
-      setAssignment(updated);
-      setSubmitSuccess("Submitted successfully.");
-      setSubmissionFile(null);
-    } catch (submissionError) {
-      setSubmitError(submissionError.message || "Moofie could not submit this assignment.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function chooseSubmissionFile(file) {
-    setSubmitError("");
-    setSubmitSuccess("");
-    if (!file) {
-      setSubmissionFile(null);
-      return;
-    }
-    if (file.size > 20_000_000) {
-      setSubmissionFile(null);
-      setSubmitError("Choose a file smaller than 20 MB.");
-      return;
-    }
-    const extension = file.name.includes(".")
-      ? file.name.split(".").pop().toLowerCase()
-      : "";
-    if (
-      item?.allowedExtensions?.length &&
-      !item.allowedExtensions.map((value) => value.toLowerCase()).includes(extension)
-    ) {
-      setSubmissionFile(null);
-      setSubmitError(`Choose one of these file types: ${acceptedFileTypes}.`);
-      return;
-    }
-    setSubmissionFile(file);
-  }
-
-  function navigateFromViewer(nextView) {
-    chrome?.onNavigate(nextView);
-  }
-
-  function navigateToCourseSection(tab) {
-    chrome?.courseNavigation?.onSelect(tab);
-  }
-
-  const assignmentStatus = item?.graded
-    ? "Graded"
-    : item?.submitted
-      ? "Submitted"
-    : item?.missing
-      ? "Missing"
-      : "Not submitted";
-  const acceptedFileTypes = item?.allowedExtensions?.length
-    ? item.allowedExtensions.join(", ")
-    : "Any file type";
-  const now = Date.now();
-  const unlockTime = item?.unlockAt ? new Date(item.unlockAt).getTime() : null;
-  const lockTime = item?.lockAt ? new Date(item.lockAt).getTime() : null;
-  const isAssignmentLocked = Boolean(
-    item?.locked ||
-      (Number.isFinite(unlockTime) && now < unlockTime) ||
-      (Number.isFinite(lockTime) && now > lockTime),
-  );
-  const lockedMessage = Number.isFinite(unlockTime) && now < unlockTime
-      ? `Locked until ${formatDueDate(item.unlockAt)}`
-      : Number.isFinite(lockTime) && now > lockTime
-        ? `Closed ${formatDueDate(item.lockAt)}`
-        : "Locked by your instructor";
-  const assignmentAccessStatus = isAssignmentLocked ? lockedMessage : "Open";
-  const assignmentStatusDate = item?.graded
-    ? item?.gradedAt
-    : item?.submitted
-      ? item?.submission?.submittedAt
-      : null;
-  const submissionMethod = isExternalToolAssignment
-    ? "External tool"
-    : supportedSubmissionTypes.length
-      ? "File upload"
-      : "No online submission";
-  const earnedPoints = Number(item?.earned);
-  const possiblePoints = Number(item?.points);
-  const hasPointGrade = item?.earned !== null &&
-    item?.earned !== undefined &&
-    Number.isFinite(earnedPoints) &&
-    Number.isFinite(possiblePoints) &&
-    possiblePoints > 0;
-  const gradeSummary = item?.graded
-    ? hasPointGrade
-      ? `${formatPoints(earnedPoints)}/${formatPoints(possiblePoints)} points (${formatPercent((earnedPoints / possiblePoints) * 100)})`
-      : String(item?.grade || "Graded")
-    : "Not graded";
-
-  if (viewer?.type === "file") {
-    const files = (chrome?.files || []).filter(file => !file.locked).slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    const index = files.findIndex(file => String(file.id) === String(item.id));
-    const previousFile = index > 0 ? files[index - 1] : null;
-    const nextFile = index >= 0 ? files[index + 1] : null;
-    const close = () => window.history.go(-(viewer.readerDepth || 1));
-    const openFile = file => writeNavigation({ moofieViewer: { ...viewer, item: file, readerDepth: (viewer.readerDepth || 1) + 1 } });
-    return createPortal(
-      <section className="document-reader" aria-label={item.name}>
-        <header className="document-reader-header">
-          <svg className="document-reader-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6V3Zm8 0v5h4M9 12h6M9 16h6" /></svg>
-          <h1 title={item.name}>{item.name}</h1>
-          <div className="document-reader-actions">
-            <details className="document-reader-info"><summary aria-label="File information" title="File information"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v1" /></svg></summary><div><strong>{item.name}</strong><span>{formatFileSize(item.size)}</span>{item.updatedAt && <span>Modified {formatResourceDate(item.updatedAt)}</span>}</div></details>
-            <FileDownload key={item.id} courseId={viewer.courseId} file={item} preview={filePreview} aria-label="Download file" title="Download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" /></svg></FileDownload>
-            <button ref={readerCloseRef} type="button" onClick={close} aria-label="Close document" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
-          </div>
-        </header>
-        <div className="document-reader-content">
-          {pageError ? <div className="document-reader-message" role="alert">{pageError}</div> : <FilePreview preview={filePreview} file={item} courseId={viewer.courseId} PdfPreview={PdfPreview} />}
-        </div>
-        <footer className="document-reader-footer"><div><button type="button" disabled={!previousFile} onClick={() => openFile(previousFile)} title={previousFile?.name}>← Previous</button><button type="button" disabled={!nextFile} onClick={() => openFile(nextFile)} title={nextFile?.name}>Next →</button></div><button type="button" onClick={close}>Close</button></footer>
-      </section>, document.body,
-    );
-  }
-
-  return createPortal(
-    <div className="course-content-route" ref={routeRef}>
-      {chrome && (
-        <SignedInNav
-          activeView={chrome.activeView}
-          data={chrome.data}
-          user={chrome.user}
-          onNavigate={navigateFromViewer}
-          disconnect={chrome.disconnect}
-          signOut={chrome.signOut}
-          deleteAccount={chrome.deleteAccount}
-        />
-      )}
-      <div className={`course-content-layout ${chrome?.courseNavigation ? "has-course-navigation" : ""} ${viewer?.type === "file" ? "is-file-preview" : ""}`}>
-        {chrome?.courseNavigation?.items?.length ? (
-          <aside className="course-content-navigation" aria-label="Course navigation">
-            {chrome.courseIdentity && (
-              <div className="course-content-identity">
-                <strong>{chrome.courseIdentity.name}</strong>
-                {chrome.courseIdentity.instructor && (
-                  <span>{chrome.courseIdentity.instructor}</span>
-                )}
-              </div>
-            )}
-            <CourseNavigation
-              activeSection={viewer?.sectionId}
-              items={chrome.courseNavigation.items}
-              onSelect={navigateToCourseSection}
-            />
-          </aside>
-        ) : null}
-        <section
-          className={`course-viewer ${viewer?.type === "assignment" ? "assignment-viewer" : ""}`}
-          aria-labelledby="course-viewer-title"
-        >
-        {viewer?.type === "page" && chrome?.courseNavigation && (
-          <div className="pages-actions"><button type="button" onClick={() => chrome.courseNavigation.onSelect({ section: "course-pages", allPages: true })}>View All Pages</button></div>
-        )}
-        <header>
-          <div>
-            <span>{viewer?.label || "Course content"}</span>
-            <h2 id="course-viewer-title">{viewer?.type === "person" ? "Profile" : item?.title || item?.name || "Loading…"}</h2>
-          </div>
-        </header>
-
-        <div className="course-viewer-body">
-          {pageError && !originalItem?.needsDetails && (viewer?.type !== "page" || originalItem?.body != null) && <p className="course-sync-notice" role="status">This content could not refresh. Showing the last successful load. <button type="button" onClick={() => setContentRevision(value => value + 1)}>Check Canvas now</button></p>}
-          {loading || pageLoading || viewer?.type === "assignment" && detailsLoading ? (
-            <ContentSkeleton label="Loading course content…" variant="list" />
-          ) : error || pageError && (originalItem?.needsDetails || viewer?.type === "page" && originalItem?.body == null) ? (
-            <div className="home-resource-error">{error || pageError}</div>
-          ) : viewer?.type === "person" ? (
-            <CoursePerson key={`${viewer.courseId}:${item.id}`} courseId={viewer.courseId} person={item} availableCourses={chrome?.data?.courses} />
-          ) : viewer?.type === "assignment" ? (
-            <div className="native-assignment-view">
-              <div className="native-assignment-facts">
-                <span className="assignment-access-fact"><strong>{assignmentAccessStatus}</strong></span>
-                <span><small>Due</small><strong>{formatDueDate(item?.dueAt)}</strong></span>
-                <span><small>Points</small><strong>{formatPoints(Number(item?.points) || 0)}</strong></span>
-                <span><small>Submitting</small><strong>{submissionMethod}</strong></span>
-                {!isExternalToolAssignment && <span><small>File types</small><strong>{acceptedFileTypes}</strong></span>}
-                {supportedSubmissionTypes.length > 0 && !detailsLoading && !isAssignmentLocked && (
-                  <button
-                    className="assignment-facts-action"
-                    type="button"
-                    onClick={() => submissionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                  >
-                    {item?.submitted ? "New attempt" : "Submit assignment"}
-                  </button>
-                )}
-              </div>
-              {detailsError && <div className="home-resource-error">{detailsError}</div>}
-              <div className="assignment-page-grid">
-                <section className="assignment-submission-panel" ref={submissionPanelRef}>
-                  <div className="assignment-section-heading">
-                    <h3>Submission</h3>
-                  </div>
-                  {detailsLoading ? (
-                    <ContentSkeleton label="Loading assignment details…" variant="text" />
-                  ) : (
-                    <>
-                    <div className="assignment-submission-details">
-                      <dl>
-                        <div>
-                          <dt>Status:</dt>
-                          <dd>
-                            <span>{assignmentStatus}</span>
-                            {assignmentStatusDate && (
-                              <small>{formatDueDate(assignmentStatusDate)}</small>
-                            )}
-                          </dd>
-                        </div>
-                        <div><dt>Grade:</dt><dd>{gradeSummary}</dd></div>
-                      </dl>
-                      <details className="submission-detail-disclosure">
-                        <summary>Submission Details</summary>
-                        <dl>
-                          <div><dt>Attempt:</dt><dd>{item?.submission?.attempt || "No submission"}</dd></div>
-                          <div><dt>Submitted:</dt><dd>{item?.submission?.submittedAt ? formatDueDate(item.submission.submittedAt) : "Not submitted"}</dd></div>
-                          <div><dt>Graded:</dt><dd>{item?.submission?.gradedAt ? formatDueDate(item.submission.gradedAt) : "Not yet graded"}</dd></div>
-                        </dl>
-                        {item?.submission?.body && <SafeCourseHtml html={item.submission.body} baseUrl={item.htmlUrl} />}
-                        {item?.submission?.url && <a href={item.submission.url} target="_blank" rel="noreferrer">Submitted website</a>}
-                        {item?.submission?.history?.length > 1 && <div><h4>Submission history</h4>{item.submission.history.map((attempt, index) => <p key={index}>Attempt {attempt.attempt}: {attempt.submittedAt ? formatDueDate(attempt.submittedAt) : "Not submitted"}{attempt.grade != null ? ` · Grade: ${attempt.grade}` : ""}</p>)}</div>}
-                      </details>
-                      <div className="submission-comments">
-                        <h4>Comments</h4>
-                        {item?.submission?.comments == null ? <p>Comments are not available yet.</p> : item.submission.comments.length === 0 ? <p>No Comments</p> : item.submission.comments.map(comment => <article key={comment.id}><strong>{comment.author}</strong>{comment.createdAt && <small>{formatDueDate(comment.createdAt)}</small>}<p>{comment.text}</p></article>)}
-                      </div>
-                    </div>
-                    {item?.submission?.attachments?.length > 0 && (
-                      <div className="submitted-attachments">
-                        {item.submission.attachments.map((attachment) => (
-                          <SubmittedAttachment
-                            key={attachment.id}
-                            attachment={attachment}
-                            courseId={viewer.courseId}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {supportedSubmissionTypes.length > 0 && !isAssignmentLocked && (
-                    <form onSubmit={handleAssignmentSubmit}>
-                      <p className="submission-help">
-                        Upload one {acceptedFileTypes === "Any file type" ? "file" : acceptedFileTypes.toUpperCase()} file from your device.
-                      </p>
-                      {submissionType === "online_upload" && (
-                        <label
-                          className={`submission-file-picker ${isDraggingFile ? "is-dragging" : ""}`}
-                          onDragEnter={(event) => { event.preventDefault(); setIsDraggingFile(true); }}
-                          onDragOver={(event) => event.preventDefault()}
-                          onDragLeave={() => setIsDraggingFile(false)}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            setIsDraggingFile(false);
-                            chooseSubmissionFile(event.dataTransfer.files?.[0] || null);
-                          }}
-                        >
-                          <b aria-hidden="true">↑</b>
-                          <span>{submissionFile ? submissionFile.name : "Drag a file here"}</span>
-                          <small>{submissionFile ? `${formatFileSize(submissionFile.size)} selected` : "or choose a file from your device"}</small>
-                          <small>Maximum 20 MB · {acceptedFileTypes}</small>
-                          <input type="file" accept={item?.allowedExtensions?.length ? item.allowedExtensions.map((extension) => `.${extension}`).join(",") : undefined} onChange={(event) => chooseSubmissionFile(event.target.files?.[0] || null)} required />
-                        </label>
-                      )}
-                      {submitError && <p className="submission-message error" role="alert">{submitError}</p>}
-                      {submitSuccess && <p className="submission-message success">{submitSuccess}</p>}
-                      <button className="submit-assignment-button" type="submit" disabled={submitting || !submissionFile}>
-                        {submitting ? "Submitting…" : item?.submitted ? "Submit new attempt" : "Submit assignment"}
-                      </button>
-                    </form>
-                    )}
-                    </>
-                  )}
-                </section>
-                <section className="assignment-instructions">
-                  <div className="assignment-section-heading">
-                    <h3>Instructions</h3>
-                  </div>
-                  {detailsLoading ? (
-                    <ContentSkeleton label="Loading instructions…" variant="text" />
-                  ) : item?.description ? (
-                    <SafeCourseHtml html={item.description} baseUrl={item.htmlUrl || viewer?.baseUrl} />
-                  ) : (
-                    <p className="native-course-empty">Your instructor did not add written instructions.</p>
-                  )}
-                  {isExternalToolAssignment && !detailsLoading && (
-                    <ExternalAssignmentLaunch key={`${viewer.courseId}:${item.id}`} courseId={viewer.courseId} assignmentId={item.id} title={item.title} canvasUrl={item.htmlUrl} />
-                  )}
-                </section>
-              </div>
-            </div>
-          ) : viewer?.type === "discussion" || viewer?.type === "announcement" ? (
-            <article
-              className={`native-discussion ${viewer?.type === "announcement" ? "native-announcement" : ""}`}
-            >
-              {(item?.authorName || item?.author || item?.authorAvatarUrl) && (
-                <div className="native-discussion-author">
-                  <CourseAuthorAvatar
-                    name={item.authorName || item.author}
-                    src={item.authorAvatarUrl}
-                  />
-                  <div>
-                    <strong>{item.authorName || item.author || "Course author"}</strong>
-                    <small>{formatResourceDate(item.postedAt, true)}</small>
-                  </div>
-                </div>
-              )}
-              <SafeCourseHtml
-                html={item?.message}
-                baseUrl={item?.htmlUrl || viewer?.baseUrl}
-              />
-            </article>
-          ) : (
-            viewer?.type === "course-tool" ? <CourseTool key={`${viewer.courseId}:${item?.toolId}`} courseId={viewer.courseId} toolId={item?.toolId} title={item?.title} renderPdf={(blob, name) => <PdfPreview fileBlob={blob} name={name} />} /> :
-            viewer?.type === "quiz" ? <CourseQuizDetails quiz={item || {}} baseUrl={viewer.baseUrl} /> :
-            <SafeCourseHtml html={item?.body || item?.message || item?.description} baseUrl={item?.htmlUrl || viewer?.baseUrl} />
-          )}
-        </div>
-        </section>
-      </div>
-      <SiteFooter />
-    </div>,
-    document.body,
-  );
-}
-
-function HomeDashboard({
-  resourcesByCourse,
-  setResourcesByCourse,
-  data,
-  user,
-  refreshFeedback,
-  onNavigate,
-  disconnect,
-  signOut,
-  deleteAccount,
-}) {
-  const [selectedCourseId, setSelectedCourseId] = useHistoryState("moofieHomeCourse", null);
-  const [loadingCourseId, setLoadingCourseId] = useState(null);
-  const [resourceError, setResourceError] = useState("");
-  const [viewer, setViewer] = useHistoryState("moofieViewer", null, true);
-  const [viewerLoading, setViewerLoading] = useState(false);
-  const [viewerError, setViewerError] = useState("");
-  const [activeCourseSection, setActiveCourseSection] = useHistoryState("moofieHomeSection", "course-overview");
-  useEffect(() => {
-    // Repair history entries created by the old /assignments/:anything matcher.
-    if (viewer?.type === "assignment" && viewer.item?.id === "syllabus") {
-      writeNavigation({ ...closedContent, moofieHomeSection: "course-syllabus", moofieView: "home" }, { replace: true });
-    }
-  }, [viewer]);
-  const [showAllPages] = useHistoryState("moofiePagesIndex", false);
-  const selectedCourse = data.courses.find(
-    (course) => course.id === selectedCourseId,
-  );
-  const resources = selectedCourse
-    ? resourcesByCourse[selectedCourse.id]
-    : null;
-
-  const visibleCourseSection = courseContentSection(activeCourseSection, resources?.course);
-  const sectionStatus = courseSectionStatus(resources, visibleCourseSection);
-
-  useEffect(() => {
-    if (
-      selectedCourseId &&
-      !data.courses.some((course) => course.id === selectedCourseId)
-    ) {
-      setSelectedCourseId(null);
-    }
-  }, [data.courses, selectedCourseId]);
-
-  useEffect(() => {
-    function restoreHomeCourse(event) {
-      setViewerLoading(false);
-      setViewerError("");
-    }
-    window.addEventListener("popstate", restoreHomeCourse);
-    return () => window.removeEventListener("popstate", restoreHomeCourse);
-  }, []);
-
-  function navigateHome(nextView) {
-    onNavigate(nextView);
-  }
-
-  useEffect(() => {
-    if (!selectedCourseId) return;
-    let active = true, running = false;
-    async function refreshCourse() {
-      if (running) return;
-      running = true;
-      setLoadingCourseId(selectedCourseId); setResourceError("");
-      try {
-        const next = await loadCourseResources(selectedCourseId);
-        if (active) setResourcesByCourse(current => ({ ...current, [selectedCourseId]: mergeCourseResources(current[selectedCourseId], next) }));
-      } catch (error) { if (active) setResourceError(error.message || "This course could not refresh. Previously loaded data is still shown."); }
-      finally { running = false; if (active) setLoadingCourseId(null); }
-    }
-    refreshCourse();
-    const stop = startCanvasAutoRefresh(refreshCourse);
-    const manual = () => { clearCanvasReadCache(); refreshCourse(); };
-    window.addEventListener("moofie:refresh", manual);
-    return () => { active = false; stop(); window.removeEventListener("moofie:refresh", manual); };
-  }, [selectedCourseId]);
-
-  function openViewer(type, label, item, options = {}) {
-    setViewer({
-      type,
-      label,
-      item,
-      courseId: options.courseId ?? selectedCourse?.id ?? item?.courseId,
-      returnView: "home",
-      sectionId: activeCourseSection,
-      ...options,
-    });
-    setViewerError("");
-    setViewerLoading(false);
-  }
-
-  function openPage(page) {
-    if (!selectedCourse) return;
-    openViewer("page", formatCourseDisplayName(selectedCourse.name), page);
-  }
-
-  const courseNavigationTabs = resources ? buildCourseNavigation(resources.tabs, resources.course?.homeUrl, selectedCourse?.name) : [];
-  const courseNavigationItems = courseNavigationTabs;
-
-  function openNativeSection(sectionId) {
-    if (sectionId === "course-grades") {
-      onNavigate("grades");
-      return;
-    }
-    if (activeCourseSection === sectionId && !viewer && !(sectionId === "course-pages" && showAllPages)) return;
-    writeNavigation({
-      ...closedContent,
-      moofieHomeCourse: selectedCourseId,
-      moofieHomeSection: sectionId,
-      moofieView: "home",
-      ...(sectionId === "course-pages" ? { moofiePagesIndex: false } : {}),
-    });
-    setViewerLoading(false);
-    setViewerError("");
-  }
-
-  function selectCourseNavigation(tab) {
-    if (tab.section === "course-pages" && tab.allPages) {
-      writeNavigation({ ...closedContent, moofieView: "home", moofieHomeCourse: selectedCourseId, moofieHomeSection: "course-pages", moofiePagesIndex: true });
-      return;
-    }
-    if (tab.section) {
-      openNativeSection(tab.section);
-      return;
-    }
-    const destination = tab.destination;
-    if (destination?.kind === "quizzes" || destination?.kind === "discussion_topics") {
-      const collection = destination.kind === "quizzes" ? resources.quizzes : resources.discussions;
-      const item = collection?.find(item => String(item.id) === destination.id);
-      if (item) openViewer(destination.kind === "quizzes" ? "quiz" : "discussion", tab.label, item, { courseId: destination.courseId, sectionId: tab.navigationKey });
-      return;
-    }
-    if (destination?.kind === "pages") {
-      openViewer("page", tab.label, { title: tab.label, pageUrl: destination.id }, { courseId: destination.courseId });
-      return;
-    }
-    if (destination?.kind === "files") {
-      const file = resources.files?.find(file => String(file.id) === destination.id);
-      openViewer("file", tab.label, file || { id: destination.id, name: tab.label }, { courseId: destination.courseId });
-      return;
-    }
-    if (destination?.kind === "assignments") {
-      openViewer("assignment", tab.label, { id: destination.id, title: tab.label }, { courseId: destination.courseId });
-      return;
-    }
-    if (tab.id === "syllabus") {
-      openViewer("page", tab.label, { title: tab.label, body: resources.course?.syllabusBody || "<p>No syllabus has been published.</p>" });
-      return;
-    }
-    openViewer("course-tool", "Course tool", { title: tab.label, toolId: destination?.toolId }, { sectionId: tab.navigationKey });
-  }
-
-  function openActivity(item) {
-    const announcement = resources.announcements.find(entry => entry.id === item.announcementId);
-    if (announcement) return openViewer("announcement", "Announcement", announcement);
-    if (item.discussionId) return openViewer("discussion", "Discussion", { id: item.discussionId, title: item.title, needsDetails: true });
-    if (item.assignmentId) return openViewer("assignment", "Assignment", { id: item.assignmentId, title: item.title });
-    // The stream message is plain text, not instructor HTML.
-    const body = item.message.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
-    return openViewer("page", "Recent Activity", { title: item.title, body: "<p>" + body + "</p>" });
-  }
-
-  function moduleItemAction(item) {
-    if (!resources) return {};
-    if (item.type === "Assignment" && item.contentId) {
-      const assignment = selectedCourse?.assignments.find(
-        (candidate) => String(candidate.id) === String(item.contentId),
-      ) || {
-        id: item.contentId,
-        courseId: selectedCourse?.id,
-        title: item.title,
-      };
-      return {
-        onClick: () =>
-          openViewer(
-            "assignment",
-            formatCourseDisplayName(selectedCourse.name),
-            assignment,
-          ),
-      };
-    }
-    if (item.locked && item.type !== "Quiz" && item.type !== "Discussion") return {};
-    if (item.type === "File") {
-      const file = resources.files.find(
-        (candidate) => String(candidate.id) === String(item.contentId),
-      );
-      return { onClick: () => openViewer("file", "Course file", file || { id: item.contentId, name: item.title, needsDetails: true }) };
-    }
-    if (item.type === "Page") {
-      const page = resources.pages.find(
-        (candidate) => candidate.pageUrl === item.pageUrl,
-      );
-      return { onClick: () => openPage(page || { pageUrl: item.pageUrl, title: item.title }) };
-    }
-    if (item.type === "Discussion") {
-      const discussion = resources.discussions?.find(
-        (candidate) => String(candidate.id) === String(item.contentId),
-      );
-      return { onClick: () => openViewer("discussion", "Discussion", discussion || { id: item.contentId, title: item.title, needsDetails: true }) };
-    }
-    if (item.type === "Quiz") {
-      const quiz = resources.quizzes?.find(
-        (candidate) => String(candidate.id) === String(item.contentId),
-      );
-      return { onClick: () => openViewer("quiz", "Quiz", quiz || { id: item.contentId, title: item.title, needsDetails: true }) };
-    }
-    if (item.externalUrl) {
-      const patch = canvasLinkNavigation(item.externalUrl, resources.course.homeUrl, item.title);
-      if (patch) return { onClick: () => writeNavigation(patch) };
-      if (new URL(item.externalUrl).origin !== new URL(resources.course.homeUrl).origin) return { href: item.externalUrl };
-    }
-
-    // An unsupported item still has its real Canvas destination; do not replace
-    // it with a synthetic empty page or a different navigation section.
-    return { href: item.htmlUrl || item.externalUrl || undefined };
-  }
-
-  function moduleItemMetadata(item) {
-    const assignment = item.type === "Assignment"
-      ? selectedCourse?.assignments?.find(
-          (candidate) => String(candidate.id) === String(item.contentId),
-        )
-      : null;
-    const quiz = item.type === "Quiz"
-      ? resources?.quizzes?.find(
-          (candidate) => String(candidate.id) === String(item.contentId),
-        )
-      : null;
-    const dueAt = item.dueAt || assignment?.dueAt || quiz?.dueAt || null;
-    const rawPoints = item.points ?? assignment?.points ?? quiz?.points;
-    const points = rawPoints === null || rawPoints === undefined
-      ? null
-      : Number(rawPoints);
-
-    return {
-      dueAt,
-      points: Number.isFinite(points) ? points : null,
-    };
-  }
-
-  const sortedAssignments = sortCourseAssignments(selectedCourse?.assignments || []);
-  const courseHomeBody =
-    resources?.course?.homeBody || "";
-  const courseHomeBaseUrl =
-    resources?.course?.homePageUrl || resources?.course?.homeUrl;
-
-  return (
-    <main
-      className={`grades-shell home-shell pull-${refreshFeedback.phase}`}
-      style={{ "--page-pull": `${refreshFeedback.distance}px` }}
-    >
-      <RefreshFeedback feedback={refreshFeedback} />
-      <SignedInNav
-        activeView="home"
-        data={data}
-        user={user}
-        onNavigate={navigateHome}
-        disconnect={disconnect}
-        signOut={signOut}
-        deleteAccount={deleteAccount}
-      />
-
-      <section className={`home-content ${selectedCourse ? "is-course-open" : ""}`}>
-        {!selectedCourse && (
-          <header className="home-heading">
-            <p className="eyeline">{data.profile.short_name || data.profile.name}</p>
-            <h1>Home</h1>
-          </header>
-        )}
-
-        {data.courses.length === 0 ? (
-          <div className="empty-card">
-            <div>
-              <h2>No active courses</h2>
-              <p>Your active Canvas courses will appear here when available.</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {!selectedCourse && (
-            <section className="home-course-picker" aria-label="Courses">
-              {data.courses.map((course) => (
-                <button
-                  className={course.id === selectedCourseId ? "is-active" : ""}
-                  type="button"
-                  key={course.id}
-                  onClick={() => {
-                    setResourceError("");
-                    writeNavigation({
-                      ...closedContent,
-                      moofieHomeCourse: course.id,
-                      moofieHomeSection: "course-overview",
-                      moofieView: "home",
-                      moofieFileFolder: null,
-                      moofiePagesIndex: false,
-                      moofieFileQuery: "",
-                      moofieFileSort: null,
-                    });
-                  }}
-                >
-                  <span className="course-picker-copy">
-                    <strong>{formatCourseDisplayName(course.name)}</strong>
-                    <small>{course.instructor}</small>
-                  </span>
-                  <span className="course-picker-open">Open course <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span>
-                </button>
-              ))}
-            </section>
-            )}
-
-            {selectedCourse && (
-              <section className="home-course-content">
-                <aside className="home-course-sidebar">
-                  <div className="home-course-heading">
-                    <div>
-                      <h2>{formatCourseDisplayName(selectedCourse.name)}</h2>
-                      <span>{selectedCourse.instructor}</span>
-                    </div>
-                  </div>
-                  {resources && (
-                    <section className="home-resource-section course-navigation-section">
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Everything available</span>
-                          <h3>Course navigation</h3>
-                        </div>
-                        <strong>{courseNavigationTabs.length}</strong>
-                      </div>
-                      {courseNavigationItems.length ? (
-                        <CourseNavigation
-                          activeSection={activeCourseSection}
-                          items={courseNavigationItems}
-                          onSelect={selectCourseNavigation}
-                        />
-                      ) : (
-                        <div className="home-course-navigation">
-                          <p className="home-resource-empty">
-                            No additional course tools are available.
-                          </p>
-                        </div>
-                      )}
-                    </section>
-                  )}
-                </aside>
-
-                {resourceError && <div className="home-resource-error" role="status">{resourceError} <button type="button" onClick={() => window.dispatchEvent(new Event("moofie:refresh"))}>Check Canvas now</button></div>}
-
-                {!resources && loadingCourseId === selectedCourse.id ? (
-                  <ContentSkeleton label="Loading course content" />
-                ) : resources ? (
-                  <div className="home-resource-grid" data-canvas-restricted={["restricted", "unavailable"].includes(sectionStatus) || undefined}>
-                    {sectionStatus && sectionStatus !== "current" && sectionStatus !== "mismatch" && <div className="course-sync-notice" role="status"><p>{sectionStatus === "restricted" ? "Canvas does not currently allow your account to read this section." : sectionStatus === "unavailable" ? "Canvas did not return this section. Its availability may have changed." : "This section could not refresh. Previously loaded content may be out of date. Moofie will retry automatically."}</p><button type="button" onClick={() => window.dispatchEvent(new Event("moofie:refresh"))}>Check Canvas now</button></div>}
-                    <section className="home-resource-section activity-section" id="course-activity" hidden={visibleCourseSection !== "course-activity"}>
-                      <div className="home-resource-title"><h3>Recent Activity</h3></div>
-                      <div className="home-resource-list">{resources.activity?.length ? resources.activity.map(item => <ResourceRow key={item.id} onClick={() => openActivity(item)}>
-                        <span className="home-resource-type-icon"><CourseItemIcon type={item.type} /></span>
-                        <span className="home-resource-copy"><strong>{item.title}</strong><small>{item.type} · {formatResourceDate(item.updatedAt, true)}</small><p>{item.message}</p></span>
-                      </ResourceRow>) : <p className="home-resource-empty">No Recent Messages</p>}</div>
-                    </section>
-
-                    <section
-                      className="home-resource-section course-overview-section"
-                      id="course-overview"
-                      hidden={visibleCourseSection !== "course-overview"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Course home</span>
-                          <h3>{resources.course?.homeTitle || resources.course?.name || formatCourseDisplayName(selectedCourse.name)}</h3>
-                        </div>
-                      </div>
-                      {resources.course?.showHomeAnnouncements && <div className="home-recent-announcements"><h4>Recent Announcements</h4>{resources.announcements.slice(0, resources.course.homeAnnouncementLimit).map(item => <ResourceRow key={item.id} onClick={() => openViewer("announcement", "Announcement", item)}><span className="home-resource-copy"><strong>{item.title}</strong><small>{formatResourceDate(item.postedAt, true)}</small></span></ResourceRow>)}</div>}
-                      <div className="home-overview-body">
-                        {courseHomeBody ? (
-                          <SafeCourseHtml
-                            html={courseHomeBody}
-                            baseUrl={courseHomeBaseUrl}
-                          />
-                        ) : (
-                          <p>This course front page has no published content.</p>
-                        )}
-                      </div>
-                    </section>
-
-                    <section
-                      className="home-resource-section announcements-section"
-                      id="course-announcements"
-                      hidden={visibleCourseSection !== "course-announcements"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Updates</span>
-                          <h3>Announcements</h3>
-                        </div>
-                      </div>
-                      <div className="home-resource-list">
-                        {resources.announcements.length ? (
-                          resources.announcements.map((announcement) => (
-                            <ResourceRow
-                              key={announcement.id}
-                              onClick={() =>
-                                openViewer("announcement", "Announcement", announcement)
-                              }
-                            >
-                              <CourseAuthorAvatar
-                                className="home-resource-avatar"
-                                name={announcement.author}
-                                src={announcement.authorAvatarUrl}
-                              />
-                              <span className="home-resource-copy">
-                                <strong>{announcement.title}</strong>
-                                <small>
-                                  {announcement.author
-                                    ? `${announcement.author} · `
-                                    : ""}
-                                  {formatResourceDate(announcement.postedAt, true)}
-                                </small>
-                                <p>{announcementText(announcement.message)}</p>
-                              </span>
-                            </ResourceRow>
-                          ))
-                        ) : (
-                          <p className="home-resource-empty">No announcements.</p>
-                        )}
-                      </div>
-                    </section>
-
-                    <section
-                      className="home-resource-section modules-section"
-                      id="course-modules"
-                      hidden={visibleCourseSection !== "course-modules"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <h3>Modules</h3>
-                        </div>
-                        <strong>{resources.modules.length}</strong>
-                      </div>
-                      <CourseModules key={selectedCourse.id} modules={resources.modules} renderItem={(item, module) => {
-                        if (item.type === "SubHeader") return <div className="home-module-subheader">{item.title}</div>;
-                        const action = moduleItemAction(item);
-                        const metadata = moduleItemMetadata(item);
-                        if (item.type === "ExternalTool" && !item.locked) return <ExternalAssignmentLaunch courseId={selectedCourse.id} moduleId={module.id} moduleItemId={item.id} title={item.title} canvasUrl={item.htmlUrl} className="home-resource-row">
-                          <span className="home-resource-type-icon"><CourseItemIcon type={item.type} /></span>
-                          <span className="home-resource-copy"><strong>{item.title}</strong></span>
-                          <span className="home-resource-arrow"><CourseRowChevron external /></span>
-                        </ExternalAssignmentLaunch>;
-                        return <ResourceRow className={item.completed ? "is-completed" : ""} href={action.href} onClick={action.onClick}>
-                          <span className="home-resource-type-icon"><CourseItemIcon type={item.type} /></span>
-                          <span className="home-resource-copy"><strong>{item.title}</strong>
-                            {(metadata.dueAt || metadata.points !== null) && <span className="home-resource-meta">
-                              {metadata.dueAt && <small>{formatModuleDate(metadata.dueAt)}</small>}
-                              {metadata.points !== null && <small>{formatPoints(metadata.points)} pts</small>}
-                            </span>}
-                          </span>
-                        </ResourceRow>;
-                      }} />
-                    </section>
-
-                    <section
-                      className="home-resource-section files-section"
-                      id="course-files"
-                      hidden={visibleCourseSection !== "course-files"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Downloads</span>
-                          <h3>Files</h3>
-                        </div>
-                        <strong>{resources.files.length}</strong>
-                      </div>
-                      <CourseFiles key={selectedCourse.id} files={resources.files} folders={resources.folders} courseName={formatCourseDisplayName(selectedCourse.name)} onOpen={file => openViewer("file", "Course file", file)} />
-                    </section>
-
-                    <section
-                      className="home-resource-section pages-section"
-                      id="course-pages"
-                      hidden={visibleCourseSection !== "course-pages"}
-                    >
-                      {!showAllPages && resources.course?.hasFrontPage ? (
-                        <>
-                          <div className="pages-actions">
-                            <button type="button" onClick={() => selectCourseNavigation({ section: "course-pages", allPages: true })}>View All Pages</button>
-                            <span className="pages-front-label">Front Page</span>
-                          </div>
-                          <div className="home-resource-title">
-                            <h3>{resources.course.homeTitle || "Front page"}</h3>
-                          </div>
-                          <SafeCourseHtml html={resources.course.homeBody} baseUrl={resources.course.homePageUrl || resources.course.homeUrl} />
-                        </>
-                      ) : (
-                        <>
-                      {resources.course?.hasFrontPage && <div className="pages-actions"><button type="button" onClick={() => openNativeSection("course-pages")}>Front Page</button></div>}
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Reference</span>
-                          <h3>Pages</h3>
-                        </div>
-                        <strong>{resources.pages.length}</strong>
-                      </div>
-                      <div className="home-resource-list compact">
-                        {resources.pages.length ? (
-                          resources.pages.map((page) => (
-                            <ResourceRow key={page.id} onClick={() => openPage(page)}>
-                              <span className="home-resource-icon">P</span>
-                              <span className="home-resource-copy">
-                                <strong>{page.title}</strong>
-                                <small>Updated {formatResourceDate(page.updatedAt)}</small>
-                              </span>
-                            </ResourceRow>
-                          ))
-                        ) : (
-                          <p className="home-resource-empty">No course pages.</p>
-                        )}
-                      </div>
-                        </>
-                      )}
-                    </section>
-
-                    <section className="home-resource-section syllabus-section" id="course-syllabus" hidden={visibleCourseSection !== "course-syllabus"}>
-                      <div className="home-resource-title"><h3>Course Syllabus</h3></div>
-                      <CourseSyllabus assignments={selectedCourse?.assignments || []} events={resources.syllabusEvents || []} onOpen={(kind, item) => openViewer(kind === "assignment" ? "assignment" : "page", "Syllabus", kind === "assignment" ? item : { title: item.title, body: item.description })}>
-                        {resources.course?.syllabusBody && <SafeCourseHtml html={resources.course.syllabusBody} baseUrl={resources.course.homeUrl} />}
-                      </CourseSyllabus>
-                    </section>
-                    <section
-                      className="home-resource-section assignments-home-section"
-                      id="course-assignments"
-                      hidden={visibleCourseSection !== "course-assignments"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Course work</span>
-                          <h3>Assignments</h3>
-                        </div>
-                        <strong>{sortedAssignments.length}</strong>
-                      </div>
-                      <CourseAssignments assignments={sortedAssignments} onOpen={assignment => openViewer("assignment", formatCourseDisplayName(selectedCourse.name), assignment)} />
-                    </section>
-
-                    <section
-                      className="home-resource-section discussions-section"
-                      id="course-discussions"
-                      hidden={visibleCourseSection !== "course-discussions"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Class conversation</span>
-                          <h3>Discussions</h3>
-                        </div>
-                        <strong>{(resources.discussions || []).length}</strong>
-                      </div>
-                      <CourseDiscussions discussions={resources.discussions} onOpen={discussion => openViewer("discussion", "Discussion", discussion)} />
-                    </section>
-
-                    <section
-                      className="home-resource-section quizzes-section"
-                      id="course-quizzes"
-                      hidden={visibleCourseSection !== "course-quizzes"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Assessments</span>
-                          <h3>Quizzes</h3>
-                        </div>
-                        <strong>{(resources.quizzes || []).length}</strong>
-                      </div>
-                      <CourseQuizzes quizzes={resources.quizzes} onOpen={quiz => openViewer("quiz", "Quiz", quiz)} />
-                    </section>
-
-                    <section
-                      className="home-resource-section people-section"
-                      id="course-people"
-                      hidden={visibleCourseSection !== "course-people"}
-                    >
-                      <div className="home-resource-title">
-                        <div>
-                          <span>Course participants</span>
-                          <h3>People</h3>
-                        </div>
-                        {resources.people != null && <strong>{resources.people.length}</strong>}
-                      </div>
-                      <CoursePeoplePanel key={selectedCourse.id} courseId={selectedCourse.id} active={visibleCourseSection === "course-people"} people={resources.people} onOpen={person => openViewer("person", "People", person, { sectionId: "course-people" })} />
-                    </section>
-                  </div>
-                ) : null}
-              </section>
-            )}
-          </>
-        )}
-      </section>
-      <CourseContentViewer
-        chrome={{
-          activeView: "home",
-          data,
-          user,
-          onNavigate: navigateHome,
-          files: resources?.files || [],
-          courseNavigation: {
-            items: courseNavigationItems,
-            onSelect: selectCourseNavigation,
-          },
-          courseIdentity: selectedCourse
-            ? {
-                name: formatCourseDisplayName(selectedCourse.name),
-                instructor: selectedCourse.instructor,
-              }
-            : null,
-          disconnect,
-          signOut,
-          deleteAccount,
-        }}
-        error={viewerError}
-        loading={viewerLoading}
-        viewer={viewer}
-      />
-    </main>
   );
 }
 
@@ -1995,7 +534,6 @@ function GradesHome({
   deleteAccount,
 }) {
   const [activeFilter, setActiveFilter] = useHistoryState("moofieGradeFilter", null);
-  const [selectedAssignment, setSelectedAssignment] = useHistoryState("moofieGradeAssignment", null, true);
   const [completedAssignments, setCompletedAssignments] = useState(() =>
     readCompletedAssignments(user?.id),
   );
@@ -2097,9 +635,6 @@ function GradesHome({
           items={previewItems}
           type={activeFilter}
           onToggleCompleted={toggleCompleted}
-          onOpenAssignment={(course, assignment) =>
-            setSelectedAssignment({ course, assignment })
-          }
         />
 
         {data.courses.length === 0 ? (
@@ -2178,30 +713,6 @@ function GradesHome({
           </section>
         )}
       </section>
-      <CourseContentViewer
-        chrome={{
-          activeView: "grades",
-          data,
-          user,
-          onNavigate,
-          disconnect,
-          signOut,
-          deleteAccount,
-        }}
-        error=""
-        loading={false}
-        viewer={
-          selectedAssignment
-            ? {
-                type: "assignment",
-                label: formatCourseDisplayName(selectedAssignment.course.name),
-                item: selectedAssignment.assignment,
-                courseId: selectedAssignment.course.id,
-                returnView: "grades",
-              }
-            : null
-        }
-      />
     </main>
   );
 }
@@ -2356,8 +867,7 @@ function AboutEntryPage() {
           <p><strong>Moofie is the custom skin.</strong></p>
           <p>The process of making this web app took me several weeks. It took a lot of learning, tutorials, understanding, and debugging to create Moofie. However, even if it ends up being useless, at least I can be proud of myself for taking a shot and trying to fix an issue that is not just mine alone but also belonged to many other people.</p>
 
-          <p>I still open CatCourses, but I want that to become less necessary. Announcements, modules, files, and course pages belong beside the grades and deadlines I already check in Moofie.</p>
-          <p>The goal is for Moofie to become the place I start, with Canvas only opening when a course tool truly requires it.</p>
+          <p>Moofie focuses on viewing grades and trying what-if scores. I use CatCourses for course content and submitting work.</p>
           <p>I suppose that problems like these help me expand my creativity through building.</p>
           <p>Not the kind born from sitting down and asking what should I build?</p>
 
@@ -2550,7 +1060,6 @@ export function CourseDetails({
     title: "",
     points: "",
   });
-  const [selectedAssignment, setSelectedAssignment] = useHistoryState("moofieCourseAssignment", null, true);
   useEffect(() => {
     setValues(initialValues);
     setManualAssignments({});
@@ -2810,13 +1319,9 @@ export function CourseDetails({
                     assignments.map((assignment) => (
                       <div className="assignment-row" key={assignment.id}>
                         <div>
-                          <button
-                            className="assignment-name assignment-name-button"
-                            type="button"
-                            onClick={() => setSelectedAssignment(assignment)}
-                          >
+                          <AssignmentLink assignment={assignment} className="assignment-name assignment-name-button">
                             {assignment.title}
-                          </button>
+                          </AssignmentLink>
 
                           <span className="assignment-details">
                             <span>
@@ -2957,29 +1462,6 @@ export function CourseDetails({
           </div>
         </section>
       </section>
-      <CourseContentViewer
-        chrome={{
-          activeView: "grades",
-          data,
-          user,
-          onNavigate,
-          disconnect,
-          signOut,
-          deleteAccount,
-        }}
-        viewer={
-          selectedAssignment
-            ? {
-                type: "assignment",
-                label: formatCourseDisplayName(course.name),
-                item: selectedAssignment,
-                courseId: course.id,
-                returnView: "grades",
-                returnCourseId: course.id,
-              }
-            : null
-        }
-      />
     </main>
   );
 }
@@ -3088,14 +1570,13 @@ function AccountActionDialog({ action, busy, error, onCancel, onConfirm }) {
 
 // Authenticated application controller: restore sessions, load data, and choose a screen.
 function GradebookApp() {
-  const [resourcesByCourse, setResourcesByCourse] = useState({});
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [data, setData] = useState(null);
   const [restoring, setRestoring] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useHistoryState("moofieCourse", null);
-  const [activeView, setActiveView] = useHistoryState("moofieView", "home");
+  const [, setActiveView] = useHistoryState("moofieView", "grades");
   useNavigationScroll();
   const [accountAction, setAccountAction] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -3110,33 +1591,17 @@ function GradebookApp() {
   const pullStartRef = useRef(null);
   const pullDistanceRef = useRef(0);
 
-  // Audit the enrolled course catalog even when a user never opens those tabs.
-  const coverageCourses = JSON.stringify((data?.courses || []).map(({ id, name }) => ({ id, name })));
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    return startCourseCoverage({
-      courses: JSON.parse(coverageCourses),
-      readResources: id => loadCourseResources(id, { refresh: true }),
-      readPage: (id, url) => loadCoursePage(id, url, { refresh: true }),
-      onResources: (id, next) => setResourcesByCourse(previous => ({ ...previous, [id]: mergeCourseResources(previous[id], next) })),
-      report: updateCanvasCoverage,
-    });
-  }, [session?.user?.id, coverageCourses]);
-
   function openCourse(courseId) {
-    writeNavigation({ ...closedContent, moofieView: "grades", moofieCourse: courseId });
+    writeNavigation({ moofieView: "grades", moofieCourse: courseId });
   }
 
-  function navigate(nextView) {
+  function navigate() {
+    const nextView = "grades";
     const current = readNavigation();
-    if (current.moofieView === nextView && !current.moofieCourse &&
-        !(nextView === "home" && current.moofieHomeCourse) &&
-        !current.moofieViewer && !current.moofieGradeAssignment && !current.moofieCourseAssignment) return;
+    if (current.moofieView === nextView && !current.moofieCourse) return;
     writeNavigation({
-      ...closedContent,
       moofieView: nextView,
       moofieCourse: null,
-      ...(nextView === "home" ? { moofieHomeCourse: null, moofieHomeSection: "course-overview" } : {}),
     });
   }
 
@@ -3145,7 +1610,6 @@ function GradebookApp() {
     if (!userId) return false;
 
     if (showFeedback) {
-      clearCanvasReadCache();
       window.clearTimeout(refreshFeedbackTimeoutRef.current);
       refreshFeedbackActiveRef.current = true;
       setRefreshFeedback({ phase: "refreshing", distance: 88 });
@@ -3295,10 +1759,9 @@ function GradebookApp() {
           }
         } else {
           clearDashboardCache();
-          setResourcesByCourse({});
           setData(null);
           setSelectedCourseId(null);
-          setActiveView("home");
+          setActiveView("grades");
           setRestoring(false);
         }
 
@@ -3350,11 +1813,10 @@ function GradebookApp() {
     try {
       if (accountAction === "disconnect") {
         await disconnectCanvasAccount();
-        setResourcesByCourse({});
         writeDashboardCache(session.user.id, null);
         setData(null);
         setSelectedCourseId(null);
-        setActiveView("home");
+        setActiveView("grades");
       } else if (accountAction === "signout") {
         clearDashboardCache();
         await supabase?.auth.signOut();
@@ -3363,7 +1825,7 @@ function GradebookApp() {
         clearDashboardCache();
         setData(null);
         setSelectedCourseId(null);
-        setActiveView("home");
+        setActiveView("grades");
         await supabase?.auth.signOut({ scope: "local" });
       }
       setAccountAction(null);
@@ -3393,14 +1855,14 @@ function GradebookApp() {
 
   if (!authReady || (restoring && !data)) return <AppLoading />;
   if (!session) return <AuthScreen />;
-  if (!data && dashboardError) return <main className="document-reader-message" role="alert"><h1>Canvas could not load yet</h1><p>{dashboardError}</p><p>Your connection has not been removed. Moofie will retry automatically.</p><button type="button" onClick={() => refreshDashboard()}>Check Canvas now</button></main>;
+  if (!data && dashboardError) return <main className="grade-load-error" role="alert"><h1>Canvas could not load yet</h1><p>{dashboardError}</p><p>Your connection has not been removed. Moofie will retry automatically.</p><button type="button" onClick={() => refreshDashboard()}>Check Canvas now</button></main>;
 
   if (!data) {
     return withAccountDialog(
       <ConnectScreen
         onConnect={(dashboard) => {
           setData(sanitizeDashboard(dashboard));
-          setActiveView("home");
+          setActiveView("grades");
         }}
         onSignOut={signOut}
         onDeleteAccount={deleteAccount}
@@ -3412,20 +1874,6 @@ function GradebookApp() {
     (course) => course.id === selectedCourseId,
   );
   const accountHandlers = { disconnect, signOut, deleteAccount };
-
-  if (activeView === "home") {
-    return withAccountDialog(
-      <HomeDashboard
-        resourcesByCourse={resourcesByCourse}
-        setResourcesByCourse={setResourcesByCourse}
-        data={data}
-        user={session.user}
-        refreshFeedback={refreshFeedback}
-        onNavigate={navigate}
-        {...accountHandlers}
-      />,
-    );
-  }
 
   if (selectedCourse) {
     return withAccountDialog(

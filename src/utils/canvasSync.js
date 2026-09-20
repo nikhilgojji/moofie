@@ -1,15 +1,11 @@
 import { classifyIssue, reportIssue } from './issueReporting.js';
 const listeners = new Set();
-let snapshot = { records: {}, coverage: {}, version: 0 };
+let snapshot = { records: {}, version: 0 };
 let generation = 0;
 export const subscribeCanvasSync = listener => { listeners.add(listener); return () => listeners.delete(listener); };
 export const getCanvasSync = () => snapshot;
 function publish(records) { snapshot = { ...snapshot, records, version: snapshot.version + 1 }; listeners.forEach(listener => listener()); }
-export function resetCanvasSync() { generation++; snapshot = { ...snapshot, coverage: {} }; publish({}); }
-export function updateCanvasCoverage(courseId, value) {
-  snapshot = { ...snapshot, coverage: { ...snapshot.coverage, [courseId]: value } };
-  publish(snapshot.records);
-}
+export function resetCanvasSync() { generation++; publish({}); }
 export function updateCanvasSync(key, value) {
   const records = { ...snapshot.records };
   const previous = records[key]; delete records[key];
@@ -18,7 +14,7 @@ export function updateCanvasSync(key, value) {
   while (keys.length > 200) delete records[keys.shift()];
   publish(records);
 }
-export const READ_ACTIONS = new Set(["dashboard", "course_resources", "course_page", "course_content", "course_file", "course_tool", "assignment_details"]);
+export const READ_ACTIONS = new Set(["dashboard"]);
 export function retryableCanvasError(error) {
   const message = String(error?.message || "");
   if (/(401|403|404)|token|sign in|locked|permission|not available/i.test(message)) return false;
@@ -56,23 +52,6 @@ export async function recoverCanvasRead(action, payload, operation, { sleep = ms
     } finally { release(); }
     await sleep(Math.min(5000, 700 * 2 ** attempt) + random() * 400);
   }
-}
-
-export function mergeCourseResources(previous, next) {
-  if (!previous) return next;
-  const merged = { ...next };
-  for (const [key, status] of Object.entries(next?._sync?.sections || {})) {
-    // Only retain last successful data for transient failures; permissions must revoke it.
-    if (status === "error" && previous[key] != null) merged[key] = previous[key];
-    if (key === "home" && status === "error") merged.course = { ...merged.course, homeBody: previous.course?.homeBody, homeTitle: previous.course?.homeTitle, hasFrontPage: previous.course?.hasFrontPage };
-    if (key === "settings" && status === "error") merged.course = { ...merged.course, showHomeAnnouncements: previous.course?.showHomeAnnouncements, homeAnnouncementLimit: previous.course?.homeAnnouncementLimit };
-  }
-  return merged;
-}
-
-export function courseSectionStatus(resources, section) {
-  const key = { "course-overview": "home", "course-syllabus": "course", "course-activity": "activity", "course-discussions": "discussions", "course-announcements": "announcements", "course-files": "files", "course-pages": "pages", "course-modules": "modules", "course-quizzes": "quizzes" }[section];
-  return resources?._sync?.sections?.[key];
 }
 
 export function startCanvasAutoRefresh(refresh, { target = window, doc = document, now = Date.now, interval = 120_000 } = {}) {

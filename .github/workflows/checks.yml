@@ -17,7 +17,6 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - run: npm run test:preview-worker
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - name: Save browser failure evidence

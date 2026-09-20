@@ -1,14 +1,11 @@
 import { useEffect, useState } from "react";
 
 const NAVIGATION_EVENT = "moofie:navigation";
-export const closedContent = {
-  moofieViewer: null,
-  moofieGradeAssignment: null,
-  moofieCourseAssignment: null,
-};
-
 export function readNavigation() {
-  return typeof window === "undefined" ? {} : window.history.state || {};
+  const state = typeof window === "undefined" ? {} : window.history.state || {};
+  const keys = new Set(['moofieView', 'moofieCourse', 'moofieGradeFilter', 'moofieScrollY', 'moofieEntryId']);
+  const current = Object.fromEntries(Object.entries(state).filter(([key]) => !key.startsWith('moofie') || keys.has(key)));
+  return { ...current, moofieView: 'grades', moofieCourse: state.moofieView === 'home' ? null : state.moofieCourse ?? null };
 }
 
 // Each visited screen owns its state. Replacing is reserved for edits within a
@@ -24,7 +21,6 @@ export function writeNavigation(patch, { replace = false } = {}) {
       ...patch,
       moofieEntryId: crypto.randomUUID(),
       moofieScrollY: 0,
-      moofieContentScrollY: 0,
     }, "");
   }
   window.dispatchEvent(new Event(NAVIGATION_EVENT));
@@ -54,17 +50,13 @@ export function useHistoryState(key, fallback, push = false) {
 
 export function useNavigationScroll() {
   useEffect(() => {
-    if (!readNavigation().moofieView) {
-      writeNavigation({ moofieView: "home" }, { replace: true });
-    }
+    writeNavigation({}, { replace: true });
     let frame;
     const previousRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
     const saveScroll = event => {
       if (event.target === document || event.target === window) {
         window.history.replaceState({ ...readNavigation(), moofieScrollY: window.scrollY }, "");
-      } else if (event.target?.classList?.contains("course-content-route")) {
-        window.history.replaceState({ ...readNavigation(), moofieContentScrollY: event.target.scrollTop }, "");
       }
     };
     const restore = () => {

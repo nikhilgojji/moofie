@@ -53,11 +53,11 @@ test('Canvas recovery reports exhausted failures and partial loads, not successf
   const options = { sleep: async () => {}, random: () => 0 };
   let tries = 0;
   try {
-    await recoverCanvasRead('course_page', {}, async () => { if (++tries < 3) throw Error('network'); return {}; }, options);
+    await recoverCanvasRead('dashboard', {}, async () => { if (++tries < 3) throw Error('network'); return {}; }, options);
     assert.equal(reports.length, 0);
-    await assert.rejects(recoverCanvasRead('course_page', {}, async () => { throw Error('network private URL'); }, options));
-    await recoverCanvasRead('course_resources', {}, async () => ({ _sync: { partial: true } }), options);
-    await assert.rejects(recoverCanvasRead('submit_assignment', {}, async () => { throw Error('network'); }, options));
-    assert.deepEqual(reports, [{ area: 'course_page', code: 'network' }, { area: 'course_resources', code: 'partial' }]);
+    await assert.rejects(recoverCanvasRead('dashboard', {}, async () => { throw Error('network private URL'); }, options));
+    await recoverCanvasRead('dashboard', {}, async () => ({ _sync: { partial: true } }), options);
+    await assert.rejects(recoverCanvasRead('connect', {}, async () => { throw Error('network'); }, options));
+    assert.deepEqual(reports, [{ area: 'dashboard', code: 'network' }, { area: 'dashboard', code: 'partial' }]);
   } finally { setIssueReporter(undefined); resetCanvasSync(); }
 });

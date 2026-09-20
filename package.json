@@ -6,7 +6,6 @@
   "scripts": {
     "lint": "eslint src",
     "test": "node --experimental-strip-types --test src/utils/*.test.mjs",
-    "test:preview-worker": "node scripts/check-spreadsheet-worker.mjs",
     "test:browser": "playwright test",
     "dev": "vite",
     "build": "vite build",
@@ -16,17 +15,8 @@
     "@fontsource-variable/libre-franklin": "^5.3.0",
     "@supabase/supabase-js": "^2.112.2",
     "@vercel/analytics": "^2.0.1",
-    "dompurify": "^3.4.15",
-    "exceljs": "^4.4.0",
-    "pdfjs-dist": "^6.3.289",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
-  },
-  "overrides": {
-    "exceljs": {
-      "uuid": "11.1.1"
-    }
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
