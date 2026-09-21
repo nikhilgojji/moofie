@@ -1275,6 +1275,7 @@ export function CourseDetails({
           <div className="assignment-groups-grid">
           {groupSummaries.map(({ group, assignments, totals, grade: groupGrade }) => {
             const isCollapsed = Boolean(collapsedGroups[group.id]);
+            const droppedIds = new Set(groupGrade.droppedAssignmentIds);
 
             return (
               <div className="assignment-group" key={group.id}>
@@ -1286,15 +1287,18 @@ export function CourseDetails({
                     )}
                     {(group.rules?.dropLowest > 0 ||
                       group.rules?.dropHighest > 0) && (
-                      <span>
+                      <p className="group-drop-rule">
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M6 10h8" /></svg>
+                        <strong>
                         {group.rules.dropLowest > 0 &&
-                          `Drops ${group.rules.dropLowest} lowest`}
+                          (group.rules.dropLowest === 1 ? "Drops the lowest score" : `Drops the ${group.rules.dropLowest} lowest scores`)}
                         {group.rules.dropLowest > 0 &&
                           group.rules.dropHighest > 0 &&
                           " · "}
                         {group.rules.dropHighest > 0 &&
-                          `Drops ${group.rules.dropHighest} highest`}
-                      </span>
+                          (group.rules.dropHighest === 1 ? "Drops the highest score" : `Drops the ${group.rules.dropHighest} highest scores`)}
+                        </strong>
+                      </p>
                     )}
                   </div>
                   <button
@@ -1317,11 +1321,16 @@ export function CourseDetails({
                     </p>
                   ) : (
                     assignments.map((assignment) => (
-                      <div className="assignment-row" key={assignment.id}>
+                      <div className={`assignment-row${droppedIds.has(assignment.id) ? " is-dropped" : ""}`} key={assignment.id}>
                         <div>
                           <AssignmentLink assignment={assignment} className="assignment-name assignment-name-button">
                             {assignment.title}
                           </AssignmentLink>
+                          {droppedIds.has(assignment.id) && (
+                            <span className="assignment-drop-note" id={`drop-${group.id}-${assignment.id}`}>
+                              <strong>Dropped</strong> · Not counted in projected grade
+                            </span>
+                          )}
 
                           <span className="assignment-details">
                             <span>
@@ -1351,6 +1360,8 @@ export function CourseDetails({
                         <div className="score-input">
                           <input
                             type="number"
+                            aria-label={`Score for ${assignment.title}`}
+                            aria-describedby={droppedIds.has(assignment.id) ? `drop-${group.id}-${assignment.id}` : undefined}
                             min="0"
                             max={assignment.points}
                             value={values[assignment.id]}
@@ -1386,7 +1397,7 @@ export function CourseDetails({
                 </div>
 
                 <div className="group-total-row">
-                  <strong>Total</strong>
+                  <strong>{droppedIds.size ? `Total after ${droppedIds.size} ${droppedIds.size === 1 ? "drop" : "drops"}` : "Total"}</strong>
                   <span className="group-grade">
                     {groupGrade.percent === null
                       ? "—"

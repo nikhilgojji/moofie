@@ -144,6 +144,12 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .assignment-group { border: 0; border-top: 1px solid var(--line); }
 .group-label { background: transparent; padding-block: 22px; }
 .assignment-row { padding-block: 16px; }
+.group-drop-rule { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; color: var(--text-strong); font-size: 14px; line-height: 1.5; }
+.group-drop-rule strong { font-weight: 650; }
+.group-drop-rule svg { flex: 0 0 20px; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; margin-top: 1px; }
+.assignment-table .assignment-row.is-dropped { background: var(--panel-hover); margin-inline: -10px; padding-inline: 10px; }
+.assignment-row > div:first-child > .assignment-drop-note { margin-top: 6px; color: var(--text-strong); font-size: 12px; line-height: 1.6; }
+.assignment-drop-note strong { font-weight: 700; }
 
 .landing-page .access-hero, .connect-page .access-layout { width: min(860px, calc(100% - 64px)); align-items: center; padding-top: clamp(72px, 12vh, 140px); }
 .landing-page .access-copy, .connect-page .access-copy { text-align: center; }

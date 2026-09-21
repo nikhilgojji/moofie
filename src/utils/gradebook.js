@@ -152,11 +152,14 @@ function scoredAssignments(assignments, values, rules = {}) {
     .slice(0, highestDropCount)
     .forEach((entry) => dropped.add(entry.assignment.id));
 
-  return scored.filter((entry) => !dropped.has(entry.assignment.id));
+  return {
+    counted: scored.filter((entry) => !dropped.has(entry.assignment.id)),
+    droppedAssignmentIds: [...dropped],
+  };
 }
 
 export function calculateGroupGrade(assignments, values, rules = {}) {
-  const scored = scoredAssignments(assignments, values, rules);
+  const { counted: scored, droppedAssignmentIds } = scoredAssignments(assignments, values, rules);
   const earned = scored.reduce((total, entry) => total + entry.earned, 0);
   const possible = scored.reduce((total, entry) => total + entry.possible, 0);
 
@@ -164,12 +167,13 @@ export function calculateGroupGrade(assignments, values, rules = {}) {
     earned,
     possible,
     percent: possible ? (earned / possible) * 100 : null,
+    droppedAssignmentIds,
   };
 }
 
 // Return raw earned/possible totals for the group summary table.
 export function groupPointTotals(assignments, values, rules = {}) {
-  return scoredAssignments(assignments, values, rules).reduce(
+  return scoredAssignments(assignments, values, rules).counted.reduce(
     (totals, entry) => ({
       earned: totals.earned + entry.earned,
       possible: totals.possible + entry.possible,
