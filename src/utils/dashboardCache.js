@@ -1,6 +1,13 @@
+import { isExcludedCourse, numericScore } from '../../supabase/functions/_shared/gradeData.js';
+
 // Keep a single per-browser dashboard snapshot for at most fifteen minutes.
 const DASHBOARD_CACHE_KEY = "moofie-dashboard-cache";
 const DASHBOARD_CACHE_TTL_MS = 15 * 60 * 1000;
+const DASHBOARD_CACHE_VERSION = 2;
+
+function sanitizeAssignment(assignment) {
+  return { ...assignment, earned: assignment.graded === false ? null : numericScore(assignment.earned) };
+}
 
 // Canvas exposes placement and training shells as courses even though they are
 // not part of a student's real schedule.
@@ -10,17 +17,14 @@ export function sanitizeDashboard(data) {
   return {
     ...data,
     courses: data.courses
-      .filter(
-        (course) => {
-          const name = String(course?.name ?? "").trim();
-          return (
-            !/^(placement exam:|shape student training\b)/i.test(name) &&
-            !/academic success/i.test(name) &&
-            !/^(?:[A-Z]\d{2}-)?CSE\s*001(?:\s+\d{2})?$/i.test(name)
-          );
-        },
-      )
-      .map((course) => {
+      .filter((course) => !isExcludedCourse(course))
+      .map((original) => {
+        const course = {
+          ...original,
+          grade: numericScore(original.grade),
+          assignments: (original.assignments || []).map(sanitizeAssignment),
+          groups: (original.groups || []).map(group => ({ ...group, assignments: (group.assignments || []).map(sanitizeAssignment) })),
+        };
         const hasGradedAssignment = (course.assignments || []).some(
           (assignment) =>
             assignment.earned !== null &&
@@ -47,6 +51,7 @@ export function readDashboardCache(userId) {
   try {
     const cached = JSON.parse(localStorage.getItem(DASHBOARD_CACHE_KEY));
     const isFresh =
+      cached?.version === DASHBOARD_CACHE_VERSION &&
       Number.isFinite(cached?.cachedAt) &&
       Date.now() - cached.cachedAt < DASHBOARD_CACHE_TTL_MS;
 
@@ -66,6 +71,7 @@ export function writeDashboardCache(userId, data) {
     localStorage.setItem(
       DASHBOARD_CACHE_KEY,
       JSON.stringify({
+        version: DASHBOARD_CACHE_VERSION,
         userId,
         data: sanitizeDashboard(data),
         cachedAt: Date.now(),

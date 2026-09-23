@@ -1,4 +1,5 @@
 import { startCanvasAutoRefresh } from "./utils/canvasSync";
+import { numericScore } from "../supabase/functions/_shared/gradeData.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readNavigation, useHistoryState, useNavigationScroll, writeNavigation } from "./utils/navigation";
 import {
@@ -502,11 +503,13 @@ function AssignmentPreview({
                   disabled={isSubmitted}
                   onClick={() => onToggleCompleted(course.id, assignment)}
                 >
+                  <span className="assignment-complete-mark" aria-hidden="true">
                   {isChecked && (
                     <svg viewBox="0 0 16 16" aria-hidden="true">
                       <path d="m3.5 8 3 3 6-6" />
                     </svg>
                   )}
+                  </span>
                 </button>
 
                 <AssignmentLink assignment={assignment} className="assignment-preview-copy">
@@ -1047,7 +1050,7 @@ export function CourseDetails({
       Object.fromEntries(
         course.groups
           .flatMap((group) => group.assignments)
-          .map((assignment) => [assignment.id, assignment.earned ?? ""]),
+          .map((assignment) => [assignment.id, assignment.graded === false ? "" : numericScore(assignment.earned) ?? ""]),
       ),
     [course],
   );
@@ -1055,6 +1058,7 @@ export function CourseDetails({
   const [values, setValues] = useState(initialValues);
   const [manualAssignments, setManualAssignments] = useState({});
   const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [addingGroupId, setAddingGroupId] = useState(null);
   const [newAssignment, setNewAssignment] = useState({
     title: "",
@@ -1234,8 +1238,15 @@ export function CourseDetails({
           )}
 
           <section className="grade-overview" aria-labelledby="grade-summary-title">
-            <h3 id="grade-summary-title">Grade summary</h3>
+            <div className="grade-overview-heading">
+              <h3 id="grade-summary-title">Grade summary</h3>
+              <button type="button" className="grade-summary-toggle" aria-expanded={summaryExpanded} aria-controls="grade-category-breakdown" onClick={() => setSummaryExpanded(open => !open)}>
+                {summaryExpanded ? "Hide categories" : `Show ${groupSummaries.length} ${groupSummaries.length === 1 ? "category" : "categories"}`}
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d={summaryExpanded ? "m5 12 5-5 5 5" : "m5 8 5 5 5-5"} /></svg>
+              </button>
+            </div>
             <div className="grade-overview-table">
+              <div id="grade-category-breakdown" hidden={!summaryExpanded}>
               <div className="grade-overview-row headings" aria-hidden="true">
                 <span>Category</span>
                 <span>Grade</span>
@@ -1255,6 +1266,7 @@ export function CourseDetails({
                   </span>
                 </div>
               ))}
+              </div>
 
               <div className="grade-overview-row overall">
                 <strong>Overall</strong>
@@ -1338,6 +1350,10 @@ export function CourseDetails({
                                 ? "What-if assignment"
                                 : formatDueDate(assignment.dueAt)}
                             </span>
+
+                            {!assignment.manual && !assignment.excused && initialValues[assignment.id] === "" && values[assignment.id] === "" && (
+                              <span className="status-pill ungraded">Ungraded</span>
+                            )}
 
                             {assignment.missing ? (
                               <span className="status-pill missing">Missing</span>
@@ -1688,22 +1704,26 @@ function GradebookApp() {
       if (
         event.touches.length !== 1 ||
         !atTop() ||
-        refreshFeedbackActiveRef.current
+        refreshFeedbackActiveRef.current ||
+        event.target instanceof Element && event.target.closest('button, a, input, select, textarea, summary, [role="checkbox"], [contenteditable="true"]')
       ) return;
-      refreshFeedbackActiveRef.current = true;
-      pullStartRef.current = event.touches[0].clientY;
+      pullDistanceRef.current = 0;
+      pullStartRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
     }
 
     function movePull(event) {
       if (pullStartRef.current === null || event.touches.length !== 1) return;
-      const movement = event.touches[0].clientY - pullStartRef.current;
-      if (movement <= 0) {
+      const movement = event.touches[0].clientY - pullStartRef.current.y;
+      const horizontal = Math.abs(event.touches[0].clientX - pullStartRef.current.x);
+      if (movement < -12 || horizontal > Math.max(12, Math.abs(movement)) || !atTop()) {
+        pullStartRef.current = null;
         pullDistanceRef.current = 0;
         refreshFeedbackActiveRef.current = false;
         setRefreshFeedback({ phase: "idle", distance: 0 });
         return;
       }
-      if (!atTop()) return;
+      if (movement < 12) return;
+      refreshFeedbackActiveRef.current = true;
       event.preventDefault();
       const distance = Math.min(movement * 0.45, 120);
       pullDistanceRef.current = distance;
@@ -1713,8 +1733,9 @@ function GradebookApp() {
       });
     }
 
-    function finishPull() {
-      const shouldRefresh = pullDistanceRef.current >= 64;
+    function finishPull(event) {
+      if (pullStartRef.current === null) return;
+      const shouldRefresh = event.type !== "touchcancel" && pullDistanceRef.current >= 64;
       pullStartRef.current = null;
       if (shouldRefresh) refreshDashboard(true);
       else {

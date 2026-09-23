@@ -2,6 +2,7 @@
 // Supabase, and Canvas. It authenticates Moofie users, encrypts Canvas tokens,
 // and returns only the course data the frontend needs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isExcludedCourse, numericScore, submissionScore } from "../_shared/gradeData.js";
 
 // Restrict browser requests to the configured local and production sites.
 const allowedOrigins = (Deno.env.get("ALLOWED_ORIGINS") || "http://localhost:5173")
@@ -195,6 +196,7 @@ function mapAssignment(
   groupPosition = 0,
 ) {
   const submission = assignment.submission ?? null;
+  const earned = submissionScore(submission);
   const externalToolUrl = safeLink(assignment.external_tool_tag_attributes?.url);
   return {
     id: assignment.id,
@@ -219,9 +221,9 @@ function mapAssignment(
     dueAt: assignment.due_at,
     updatedAt: assignment.updated_at ?? null,
     points: Number(assignment.points_possible ?? 0),
-    earned: submission?.score ?? null,
+    earned,
     grade: submission?.grade ?? null,
-    graded: submission?.workflow_state === "graded" || submission?.score != null,
+    graded: earned !== null,
     gradedAt: submission?.graded_at ?? null,
     gradedAnonymously: Boolean(assignment.anonymous_grading),
     submitted: Boolean(submission?.submitted_at),
@@ -247,7 +249,7 @@ function mapAssignment(
           attempt: Number(submission.attempt || 0),
           submittedAt: submission.submitted_at || null,
           workflowState: submission.workflow_state || null,
-          score: submission.score ?? null,
+          score: earned,
           grade: submission.grade ?? null,
           gradedAt: submission.graded_at || null,
           body: submission.body || null,
@@ -278,13 +280,10 @@ async function dashboard(canvasUrl: string, token: string) {
   ]);
   const usable = rawCourses.filter(
     (course: any) => {
-      const name = String(course.name ?? "").trim();
       return (
         course.workflow_state === "available" &&
         !course.access_restricted_by_date &&
-        !/^(placement exam:|shape student training\b)/i.test(name) &&
-        !/academic success/i.test(name) &&
-        !/^(?:[A-Z]\d{2}-)?CSE\s*001(?:\s+\d{2})?$/i.test(name)
+        !isExcludedCourse(course)
       );
     },
   );
@@ -324,10 +323,9 @@ async function dashboard(canvasUrl: string, token: string) {
           (item: any) =>
             item.type === "student" || item.type === "StudentEnrollment",
         ) ?? course.enrollments?.[0];
-      const rawGrade =
-        enrollment?.computed_current_score ??
-        enrollment?.computed_final_score ??
-        null;
+      // Final scores include ungraded assignments as zero; they are not a
+      // substitute for the student's current grade.
+      const rawGrade = numericScore(enrollment?.computed_current_score);
       const assignments = groups.flatMap((group: any) => group.assignments);
       const hasGradedAssignment = assignments.some(
         (assignment: any) =>
@@ -337,7 +335,7 @@ async function dashboard(canvasUrl: string, token: string) {
           !assignment.excused,
       );
       const grade =
-        hasGradedAssignment && rawGrade != null ? Number(rawGrade) : null;
+        hasGradedAssignment ? rawGrade : null;
 
       return {
         id: course.id,
@@ -349,10 +347,9 @@ async function dashboard(canvasUrl: string, token: string) {
             ?.map((teacher: any) => teacher.display_name)
             .join(", ") || "Instructor not listed",
         grade,
-        letter: hasGradedAssignment
+        letter: hasGradedAssignment && grade !== null
           ? String(
               enrollment?.computed_current_grade ||
-                enrollment?.computed_final_grade ||
                 gradeLetter(grade),
             ).replace(/^A\+$/i, "A")
           : null,

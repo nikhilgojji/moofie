@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
+import { submissionScore } from '../../supabase/functions/_shared/gradeData.js';
 
 const source = readFileSync(new URL("../../supabase/functions/canvas/index.ts", import.meta.url), "utf8");
 const start = source.indexOf("function mapAssignment(");
 const end = source.indexOf("async function dashboard", start);
-const mapAssignment = new Function("safeLink", stripTypeScriptTypes(source.slice(start, end)) + "\nreturn mapAssignment;")(value => value || null);
+const mapAssignment = new Function("safeLink", "submissionScore", stripTypeScriptTypes(source.slice(start, end)) + "\nreturn mapAssignment;")(value => value || null, submissionScore);
 
 test("Canvas position and submission comments survive the actual backend mapping", () => {
   const mapped = mapAssignment({ id: 1, name: "Letter", position: 2, submission: { attempt: 1, submitted_at: "2026-09-01T18:38:00Z", submission_comments: [{ id: 8, author_name: "Instructor", comment: "Received", created_at: "2026-09-02T12:00:00Z" }], submission_history: [{ attempt: 1, submitted_at: "2026-09-01T18:38:00Z" }] } }, 9, 10, 20, 3);

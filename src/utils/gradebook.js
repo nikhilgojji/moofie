@@ -1,3 +1,5 @@
+import { numericScore } from '../../supabase/functions/_shared/gradeData.js';
+
 // Store this conversion once so relative-date calculations stay readable.
 const DAY_MS = 86_400_000;
 const UPCOMING_WINDOW_MS = 7 * DAY_MS;
@@ -113,11 +115,11 @@ function scoredAssignments(assignments, values, rules = {}) {
   const scored = assignments
     .filter((assignment) => !assignment.omitted && !assignment.excused)
     .flatMap((assignment) => {
-      const value = values[assignment.id];
-      if (value === "" || value === null || value === undefined) return [];
+      const value = numericScore(values[assignment.id]);
+      if (value === null) return [];
 
       const possible = Math.max(Number(assignment.points) || 0, 0);
-      const entered = Math.max(Number(value) || 0, 0);
+      const entered = Math.max(value, 0);
       return [{
         assignment,
         possible,
