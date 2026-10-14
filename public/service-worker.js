@@ -12,6 +12,7 @@ self.addEventListener("push", (event) => {
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       tag: message.tag || "moofie-grade-update",
+      renotify: true,
       data: { url: message.url || "/" },
     }),
   );

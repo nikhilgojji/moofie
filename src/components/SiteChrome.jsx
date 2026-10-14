@@ -1,6 +1,9 @@
 // Shared page chrome lives here so every screen uses the same navigation,
 // footer links and account controls.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { updateGradeHistory } from '../utils/gradeNotifications';
+import { gradeKey, gradeText } from '../../supabase/functions/_shared/gradeNotifications.js';
+import { CanvasLink } from './CanvasLink';
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -15,6 +18,7 @@ function formatCourseName(name) {
 }
 
 function formatNotificationTime(value) {
+  if (value === '1970-01-01T00:00:00.000Z') return 'Current grade';
   if (!value) return "Recently updated";
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -62,29 +66,21 @@ export function SignedInNav({
   const profileMenuRef = useRef(null);
   const notificationsMenuRef = useRef(null);
   const notificationsKey = `moofie-grade-notifications-seen:${user?.id}`;
-  const gradeNotifications = useMemo(
-    () =>
-      data.courses
-        .flatMap((course) =>
-          (course.assignments || [])
-            .filter(
-              (assignment) =>
-                assignment.earned !== null && assignment.earned !== undefined,
-            )
-            .map((assignment) => ({
-              id: `${course.id}-${assignment.id}`,
-              assignment,
-              courseName: formatCourseName(course.name),
-              updatedAt: assignment.gradedAt || assignment.updatedAt,
-            })),
-        )
-        .sort(
-          (left, right) =>
-            new Date(right.updatedAt || 0) - new Date(left.updatedAt || 0),
-        )
-        .slice(0, 20),
-    [data.courses],
-  );
+  const historyKey = `moofie-grade-history:${user?.id}`;
+  const historyRef = useRef(null);
+  const [notificationHistory, setNotificationHistory] = useState(null);
+  const gradeNotifications = notificationHistory && notificationHistory.userId === user?.id ? notificationHistory.events : [];
+  useEffect(() => {
+    let previous = historyRef.current?.userId === user?.id ? historyRef.current : null;
+    if (!previous) {
+      try { previous = JSON.parse(localStorage.getItem(historyKey)); } catch { /* Storage is optional. */ }
+      if (previous?.userId !== user?.id || !Array.isArray(previous?.snapshots) || !Array.isArray(previous?.events)) previous = null;
+    }
+    const next = { ...updateGradeHistory(previous, data.courses, user?.id), userId: user?.id };
+    historyRef.current = next;
+    setNotificationHistory(next);
+    try { localStorage.setItem(historyKey, JSON.stringify(next)); } catch { /* Keep alerts in memory. */ }
+  }, [data.courses, user?.id, historyKey]);
   const [notificationsSeenAt, setNotificationsSeenAt] = useState(() => {
     try {
       return Number(localStorage.getItem(notificationsKey)) || Date.now();
@@ -97,8 +93,8 @@ export function SignedInNav({
   const [pushError, setPushError] = useState("");
   const unreadCount = gradeNotifications.filter(
     (notification) =>
-      notification.updatedAt &&
-      new Date(notification.updatedAt).getTime() > notificationsSeenAt,
+      notification.observedAt &&
+      new Date(notification.observedAt).getTime() > notificationsSeenAt,
   ).length;
   const accountName =
     data.profile.short_name ||
@@ -222,7 +218,7 @@ export function SignedInNav({
                 <strong>Phone alerts</strong>
                 <span>
                   {pushStatus === "enabled"
-                    ? "On for this device"
+                    ? "On · checks for grades every 15 minutes"
                     : pushStatus === "denied"
                       ? "Blocked in device settings"
                       : pushStatus === "unsupported"
@@ -252,18 +248,17 @@ export function SignedInNav({
                 {gradeNotifications.map((notification) => {
                   const content = (
                     <>
-                      <strong>{notification.assignment.title}</strong>
+                      <strong>{notification.assignment_title}</strong>
                       <span>
-                        {notification.courseName} · {notification.assignment.earned}
-                        {notification.assignment.points
-                          ? ` / ${notification.assignment.points} pts`
-                          : " pts"}
+                        {formatCourseName(notification.course_name)} · {gradeText(notification)}
                       </span>
-                      <time>{formatNotificationTime(notification.updatedAt)}</time>
+                      <time>{formatNotificationTime(notification.observedAt)}</time>
                     </>
                   );
 
-                  return <div key={notification.id}>{content}</div>;
+                  return notification.html_url
+                    ? <CanvasLink key={gradeKey(notification)} url={notification.html_url}>{content}</CanvasLink>
+                    : <div key={gradeKey(notification)}>{content}</div>;
                 })}
               </div>
             )}

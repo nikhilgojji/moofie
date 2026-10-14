@@ -9,6 +9,7 @@ import {
   loadCanvasDashboard,
 } from "./canvasApi";
 import { PublicNav, SignedInNav, SiteFooter } from "./components/SiteChrome";
+import { CanvasLink } from "./components/CanvasLink";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import {
   clearDashboardCache,
@@ -398,14 +399,7 @@ function GradeSummary({ courses, activeFilter, completed, onToggle }) {
 }
 
 function AssignmentLink({ assignment, className, children }) {
-  let href;
-  try {
-    const url = new URL(assignment.htmlUrl);
-    if (url.protocol === "https:" && !assignment.manual) href = url.href;
-  } catch { /* Assignments without a Canvas URL remain readable. */ }
-  return href
-    ? <a className={className} href={href} target="_blank" rel="noopener noreferrer" title="Open in Canvas">{children}</a>
-    : <span className={className}>{children}</span>;
+  return <CanvasLink url={assignment.manual ? null : assignment.htmlUrl} className={className}>{children}</CanvasLink>;
 }
 
 function AssignmentPreview({

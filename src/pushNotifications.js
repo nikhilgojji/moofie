@@ -27,6 +27,9 @@ export async function getPushNotificationStatus() {
     "/service-worker.js",
   );
   const subscription = await registration.pushManager.getSubscription();
+  // A browser subscription can outlive sign-out or a server-side cleanup.
+  // Rebind it to the authenticated account before claiming alerts are enabled.
+  if (subscription) await registerPushSubscription(subscription.toJSON());
   return subscription ? "enabled" : "available";
 }
 

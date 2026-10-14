@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import { isExcludedCourse, numericScore, submissionScore } from '../_shared/gradeData.js';
+import { gradeSnapshots, gradeChanged, gradeKey, notificationFor } from '../_shared/gradeNotifications.js';
 
 type Connection = {
   user_id: string;
@@ -15,6 +17,7 @@ type GradeSnapshot = {
   course_name: string;
   assignment_title: string;
   score: number | null;
+  grade: string | null;
   points_possible: number;
   graded_at: string | null;
   html_url: string | null;
@@ -79,18 +82,15 @@ async function canvasList(canvasUrl: string, path: string, token: string) {
 async function getCurrentGrades(connection: Connection, token: string) {
   const courses = await canvasList(
     connection.canvas_url,
-    "/api/v1/courses?enrollment_state=active&per_page=100",
+    "/api/v1/courses?enrollment_state=active&include[]=total_scores&per_page=100",
     token,
   );
   const usable = courses.filter(
     (course) => {
-      const name = String(course.name ?? "").trim();
       return (
         course.workflow_state === "available" &&
         !course.access_restricted_by_date &&
-        !/^(placement exam:|shape student training\b)/i.test(name) &&
-        !/academic success/i.test(name) &&
-        !/^(?:[A-Z]\d{2}-)?CSE\s*001(?:\s+\d{2})?$/i.test(name)
+        !isExcludedCourse(course)
       );
     },
   );
@@ -105,59 +105,32 @@ async function getCurrentGrades(connection: Connection, token: string) {
         token,
       );
 
-      return groups.flatMap((group) =>
-        (group.assignments || [])
-          .filter(
-            (assignment) =>
-              assignment.submission?.score !== null &&
-              assignment.submission?.score !== undefined,
-          )
-          .map((assignment): GradeSnapshot => ({
-            user_id: connection.user_id,
-            course_id: Number(course.id),
-            assignment_id: Number(assignment.id),
-            course_name: String(course.name || course.course_code || "Course"),
-            assignment_title: String(assignment.name || "Assignment"),
-            score: Number(assignment.submission.score),
-            points_possible: Number(assignment.points_possible || 0),
-            graded_at: assignment.submission.graded_at || null,
-            html_url: assignment.html_url || null,
-            updated_at: new Date().toISOString(),
-          })),
-      );
+      const enrollment = course.enrollments?.find((item: any) => item.type === 'student' || item.type === 'StudentEnrollment');
+      return gradeSnapshots([{
+        id: course.id, name: course.name || course.course_code,
+        grade: numericScore(enrollment?.computed_current_score), letter: enrollment?.computed_current_grade,
+        htmlUrl: `${connection.canvas_url}/courses/${course.id}/grades`,
+        assignments: groups.flatMap(group => (group.assignments || []).map((assignment: any) => ({
+          id: assignment.id, title: assignment.name, earned: submissionScore(assignment.submission),
+          grade: assignment.submission?.grade, points: assignment.points_possible,
+          excused: assignment.submission?.excused, gradedAt: assignment.submission?.graded_at,
+          htmlUrl: assignment.html_url,
+        }))),
+      }], connection.user_id);
     }),
   );
 
   return snapshots.flat();
 }
 
-function gradeChanged(previous: any, current: GradeSnapshot) {
-  if (!previous) return true;
-  return (
-    Number(previous.score) !== Number(current.score) ||
-    (previous.graded_at || null) !== (current.graded_at || null)
-  );
-}
-
-function notificationFor(changes: GradeSnapshot[]) {
-  if (changes.length === 1) {
-    const grade = changes[0];
-    const points = grade.points_possible
-      ? `${grade.score} / ${grade.points_possible} pts`
-      : `${grade.score} pts`;
-    return {
-      title: `${grade.assignment_title} was graded`,
-      body: `${grade.course_name} · ${points}`,
-      tag: `grade-${grade.course_id}-${grade.assignment_id}`,
-      url: "/",
-    };
+async function readAll(query: () => any) {
+  const rows = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await query().range(offset, offset + 499);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 500) return rows;
   }
-  return {
-    title: `${changes.length} grade updates`,
-    body: `New or changed grades are ready in Moofie.`,
-    tag: "moofie-grade-updates",
-    url: "/",
-  };
 }
 
 Deno.serve(async (request) => {
@@ -182,12 +155,10 @@ Deno.serve(async (request) => {
     requiredEnv("VAPID_PRIVATE_KEY"),
   );
 
-  const { data: connections, error: connectionsError } = await admin
+  const connections = await readAll(() => admin
     .from("canvas_connections")
     .select("user_id, canvas_url, encrypted_token, token_iv")
-    .order("updated_at", { ascending: true })
-    .limit(100);
-  if (connectionsError) throw connectionsError;
+    .order("user_id", { ascending: true }));
 
   let usersChecked = 0;
   let notificationsSent = 0;
@@ -197,51 +168,42 @@ Deno.serve(async (request) => {
     try {
       const token = await decryptToken(connection.encrypted_token, connection.token_iv);
       const current = await getCurrentGrades(connection, token);
-      const [{ data: previous }, { data: priorRun }] = await Promise.all([
-        admin
+      const [previous, { data: priorRun, error: priorRunError }] = await Promise.all([
+        readAll(() => admin
           .from("grade_notification_state")
-          .select("course_id, assignment_id, score, graded_at")
-          .eq("user_id", connection.user_id),
+          .select("course_id, assignment_id, score, grade, points_possible, graded_at")
+          .eq("user_id", connection.user_id)
+          .order("course_id").order("assignment_id")),
         admin
           .from("grade_notification_runs")
-          .select("last_checked_at")
+          .select("last_checked_at, snapshot_version")
           .eq("user_id", connection.user_id)
           .maybeSingle(),
       ]);
+      if (priorRunError) throw priorRunError;
       const previousById = new Map(
         (previous || []).map((grade) => [
           `${grade.course_id}-${grade.assignment_id}`,
-          grade,
+          priorRun?.snapshot_version === 2 ? grade : { ...grade, grade: undefined },
         ]),
       );
       const changes = priorRun
         ? current.filter((grade) =>
-            gradeChanged(
+            // The first overall-grade snapshot after upgrading is a baseline.
+            (priorRun.snapshot_version === 2 || grade.assignment_id !== 0 || previousById.has(gradeKey(grade))) && gradeChanged(
               previousById.get(`${grade.course_id}-${grade.assignment_id}`),
               grade,
             ),
           )
         : [];
 
-      if (current.length) {
-        const { error } = await admin
-          .from("grade_notification_state")
-          .upsert(current, { onConflict: "user_id,course_id,assignment_id" });
-        if (error) throw error;
-      }
-      const { error: runError } = await admin
-        .from("grade_notification_runs")
-        .upsert({ user_id: connection.user_id, last_checked_at: new Date().toISOString() });
-      if (runError) throw runError;
-
       if (changes.length) {
-        const { data: subscriptions, error } = await admin
+        const subscriptions = await readAll(() => admin
           .from("push_subscriptions")
           .select("endpoint, p256dh, auth")
-          .eq("user_id", connection.user_id);
-        if (error) throw error;
+          .eq("user_id", connection.user_id).order("id"));
         const payload = JSON.stringify(notificationFor(changes));
-
+        let deliveryError;
         for (const subscription of subscriptions || []) {
           try {
             await webpush.sendNotification(
@@ -256,16 +218,28 @@ Deno.serve(async (request) => {
           } catch (error) {
             const statusCode = Number((error as any)?.statusCode || 0);
             if (statusCode === 404 || statusCode === 410) {
-              await admin
+              const { error: removalError } = await admin
                 .from("push_subscriptions")
                 .delete()
                 .eq("endpoint", subscription.endpoint);
+              if (removalError) deliveryError = removalError;
             } else {
-              throw error;
+              deliveryError = error;
             }
           }
         }
+        if (deliveryError) throw deliveryError;
       }
+      // Advance only after delivery succeeds. Temporary push failures retry on
+      // the next check instead of permanently swallowing the grade change.
+      if (current.length) {
+        const { error } = await admin.from("grade_notification_state")
+          .upsert(current, { onConflict: "user_id,course_id,assignment_id" });
+        if (error) throw error;
+      }
+      const { error: runError } = await admin.from("grade_notification_runs")
+        .upsert({ user_id: connection.user_id, last_checked_at: new Date().toISOString(), snapshot_version: 2 });
+      if (runError) throw runError;
       usersChecked += 1;
     } catch (error) {
       failures.push({
