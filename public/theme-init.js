@@ -1,10 +1,9 @@
-// Run before styles and React so the first paint matches the saved preference.
+// Moofie is light-only, including browsers with an old dark-mode preference.
 (() => {
-  let theme = "light";
   try {
-    if (localStorage.getItem("moofie-theme") === "dark") theme = "dark";
-  } catch { /* New visitors and restricted storage start in light mode. */ }
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0b0b0c" : "#f7f6f2");
+    localStorage.removeItem("moofie-theme");
+  } catch { /* Light mode also works when browser storage is unavailable. */ }
+  document.documentElement.dataset.theme = "light";
+  document.documentElement.style.colorScheme = "light";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#f7f6f2");
 })();

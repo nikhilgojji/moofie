@@ -29,6 +29,7 @@
   color-scheme: dark;
 }
 
+:root,
 :root[data-theme="light"] {
   --bg: #f7f6f2;
   --panel: #fdfcf9;

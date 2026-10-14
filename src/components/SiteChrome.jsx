@@ -1,14 +1,11 @@
 // Shared page chrome lives here so every screen uses the same navigation,
-// theme behavior, footer links, and account controls.
+// footer links and account controls.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   disablePushNotifications,
   enablePushNotifications,
   getPushNotificationStatus,
 } from "../pushNotifications";
-
-// Remember the explicit choice under one stable browser-storage key.
-import { applyTheme, getInitialTheme, THEME_STORAGE_KEY } from "../utils/theme";
 
 function formatCourseName(name) {
   return String(name ?? "")
@@ -27,44 +24,6 @@ function formatNotificationTime(value) {
   }).format(new Date(value));
 }
 
-// Apply and persist dark/light mode while exposing an accessible toggle button.
-export function ThemeToggle() {
-  const [theme, setTheme] = useState(getInitialTheme);
-
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
-
-  const nextTheme = theme === "dark" ? "light" : "dark";
-
-  return (
-    <button
-      className="theme-toggle"
-      type="button"
-      onClick={() => {
-        setTheme(nextTheme);
-        try { localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch { /* Apply without persistence. */ }
-      }}
-      aria-label={`Switch to ${nextTheme} mode`}
-      title={`Switch to ${nextTheme} mode`}
-    >
-      {theme === "dark" ? (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="4" />
-          <path
-            d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41
-              1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"
-          />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5 8.5 8.5 0 1 0 20.5 14.3Z" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
 // Header used on signed-out and informational pages.
 export function PublicNav({ label = "Public page navigation" }) {
   return (
@@ -73,7 +32,6 @@ export function PublicNav({ label = "Public page navigation" }) {
         <span>Moofie</span>
       </a>
       <nav className="access-nav" aria-label={label}>
-        <ThemeToggle />
         <a href="/about">About</a>
       </nav>
     </header>
@@ -311,7 +269,6 @@ export function SignedInNav({
             )}
           </div>
         </details>
-        <ThemeToggle />
         <a href="/about">About</a>
         <details className="profile-menu" ref={profileMenuRef}>
           <summary aria-label="Open profile menu" title="Profile">

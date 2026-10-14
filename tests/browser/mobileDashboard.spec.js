@@ -19,6 +19,8 @@ for (const [width, theme] of [[320, 'light'], [390, 'dark']]) {
       : `export function ${name}(){throw Error('Unexpected request: ${name}');}`).join('\n') }));
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'My grades' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('button', { name: /Switch to .* mode/ })).toHaveCount(0);
     await expect(page.locator('.grade-card')).toHaveCount(1);
     await page.getByTitle('Show upcoming assignments').tap();
     const checkbox = page.getByRole('checkbox', { name: 'Mark The Secret of Photo 51 finished', exact: true });

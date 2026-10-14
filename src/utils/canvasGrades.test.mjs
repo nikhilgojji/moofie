@@ -66,3 +66,13 @@ test('old dashboard caches are discarded and corrected scores remain account-sco
   assert.equal(readDashboardCache('B').found, false);
   delete globalThis.localStorage;
 });
+
+test('2026-2027 courses are excluded from Canvas results and cached dashboards', async () => {
+  const excluded = ['Orientation 2026-2027', 'Advising 2026 \u2013 2027', '2026\u20142027 Resources'];
+  for (const name of excluded) assert.equal(isExcludedCourse({ name }), true);
+  assert.equal(isExcludedCourse({ name: 'Resources', course_code: '2026-2027' }), true);
+  for (const name of ['Fall 2026 Physics', 'Spring 2027 Chemistry', '2025-2026 Resources']) assert.equal(isExcludedCourse({ name }), false);
+  const courses = [anth, ...excluded.map((name, index) => ({ ...anth, id: index + 300, name }))];
+  assert.deepEqual((await dashboard(courses)).courses.map(c => c.name), ['ANTH 169']);
+  assert.deepEqual(sanitizeDashboard({ courses }).courses.map(c => c.name), ['ANTH 169']);
+});

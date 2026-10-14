@@ -20,6 +20,7 @@ export function isExcludedCourse(course) {
   const name = String(course?.name ?? '').trim();
   const label = `${name} ${course?.course_code || course?.code || ''}`;
   return /^(placement exam:|shape student training\b)/i.test(name)
+    || /2026\s*[-\u2013\u2014]\s*2027/.test(label)
     || /academic success/i.test(name)
     || /^(?:[A-Z]\d{2}-)?CSE\s*001(?:\s+\d{2})?$/i.test(name)
     || (/\bSE\s*25\b/i.test(label) && /\b(college\s+readiness|chemistry)\b/i.test(label));

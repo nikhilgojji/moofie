@@ -3,7 +3,7 @@
  * --------------------
  * Custom properties centralize colors, spacing, and corner shapes so the rest
  * of the stylesheet can describe purpose (`var(--panel)`) instead of repeating
- * raw values. Dark mode is the default; the light theme overrides these tokens.
+ * raw values. The light-only application palette overrides these base tokens.
  */
 :root {
   font-family: "Segoe UI Variable Text", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,

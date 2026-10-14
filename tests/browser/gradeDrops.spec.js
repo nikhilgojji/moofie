@@ -6,7 +6,7 @@ for (const [width, theme] of [[1280, 'light'], [390, 'dark']]) {
     await page.setViewportSize({ width, height: 900 });
     await page.addInitScript(value => localStorage.setItem('moofie-theme', value), theme);
     await page.goto(`/tests/mobile.html?case=drops&theme=${theme}`);
-    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     const rule = page.getByText('Drops the lowest score', { exact: true });
     await expect(rule).toBeVisible();
     await expect(page.locator('.assignment-row.is-dropped')).toContainText('Unit 01 Quiz');
