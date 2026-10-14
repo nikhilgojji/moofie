@@ -11,13 +11,23 @@ test('new assignments and pending scores do not alert; newly posted zero grades 
   assert.equal(gradeChanged(pending, { ...pending, score: 0 }), true);
   assert.equal(gradeChanged(previous[1], { ...previous[1], score: null }), false);
 });
-test('assignment grades, points, regrades and overall grade changes alert without assignment-edit noise', () => {
+test('assignment grades, points and overall grade changes alert without assignment-edit noise', () => {
   const [overall, assignment] = gradeSnapshots([course], 'A');
-  for (const change of [{ score: 9 }, { points_possible: 12 }, { grade: 'complete' }, { graded_at: '2026-10-02T12:00:00Z' }]) assert.equal(gradeChanged(assignment, { ...assignment, ...change }), true);
+  for (const change of [{ score: 9 }, { points_possible: 12 }, { grade: 'complete' }]) assert.equal(gradeChanged(assignment, { ...assignment, ...change }), true);
   assert.equal(gradeChanged(overall, { ...overall, score: 90, grade: 'A' }), true);
   assert.equal(gradeChanged(overall, { ...overall, grade: 'B+' }), true);
   assert.equal(gradeChanged(assignment, { ...assignment, assignment_title: 'Renamed', updated_at: '2026-10-03T00:00:00Z' }), false);
   assert.match(notificationFor([{ ...overall, score: 90 }]).title, /overall grade updated/);
+});
+
+test('timestamp formatting and re-saving the same grade never trigger alerts', () => {
+  const assignment = gradeSnapshots([course], 'A')[1];
+  for (const graded_at of ['2026-10-01T12:00:00+00:00', '2026-10-01T12:00:00.000Z', '2026-10-01T05:00:00-07:00', '2026-10-02T12:00:00Z', null]) {
+    const saved = { ...assignment, graded_at, score: '8', points_possible: '10' };
+    assert.equal(gradeChanged(saved, assignment), false);
+    assert.equal(gradeChanged(assignment, saved), false);
+    assert.equal(gradeChanged(saved, { ...assignment, score: 9 }), true);
+  }
 });
 test('bell history detects score-only changes, retains read history and ignores new ungraded assignments', () => {
   const initial = updateGradeHistory(null, [course], 'A', '2026-10-01T15:00:00Z');

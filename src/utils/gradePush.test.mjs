@@ -5,7 +5,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { isExcludedCourse, numericScore, submissionScore } from '../../supabase/functions/_shared/gradeData.js';
 import { gradeSnapshots, gradeChanged, gradeKey, notificationFor } from '../../supabase/functions/_shared/gradeNotifications.js';
 
-function worker({ failPush = false, failRead = false, firstRun = false } = {}) {
+function worker({ failPush = false, failRead = false, firstRun = false, unchanged = false } = {}) {
   const course = { id: 1, name: 'PHYS 009', grade: 80, letter: 'B', assignments: [{ id: 2, title: 'Quiz', points: 10, earned: 8, grade: '8', gradedAt: '2026-10-01T12:00:00Z' }] };
   const tables = {
     canvas_connections: [{ user_id: 'A', canvas_url: 'https://canvas.example' }],
@@ -26,7 +26,11 @@ function worker({ failPush = false, failRead = false, firstRun = false } = {}) {
         if (failRead && table === 'grade_notification_state' && operation === 'read') return Promise.resolve({ error: Error('Read failed') }).then(resolve, reject);
         if (operation !== 'read') { actions.push(`${operation}:${table}`); tables[table] = values || []; }
         const data = range ? tables[table].slice(range[0], range[1] + 1) : tables[table];
-        return Promise.resolve({ data: single ? data[0] || null : data }).then(resolve, reject);
+        // PostgREST serializes timestamptz with an offset, unlike Canvas's Z.
+        const serialized = table === 'grade_notification_state'
+          ? data.map(row => ({ ...row, graded_at: row.graded_at ? new Date(row.graded_at).toISOString().replace('.000Z', '+00:00') : null }))
+          : data;
+        return Promise.resolve({ data: single ? serialized[0] || null : serialized }).then(resolve, reject);
       },
     };
     return query;
@@ -44,10 +48,10 @@ function worker({ failPush = false, failRead = false, firstRun = false } = {}) {
   source = source.replace(/async function decryptToken[\s\S]*?function nextPageUrl/, 'async function decryptToken() { return "test-only"; }\nfunction nextPageUrl');
   const fetch = async url => Response.json(String(url).includes('/assignment_groups')
     ? [{ assignments: [
-      { id: 2, name: 'Quiz', points_possible: 10, submission: { score: 9, grade: '9', workflow_state: 'graded', graded_at: '2026-10-01T12:00:00Z' } },
+      { id: 2, name: 'Quiz', points_possible: 10, submission: { score: unchanged ? 8 : 9, grade: unchanged ? '8' : '9', workflow_state: 'graded', graded_at: '2026-10-01T12:00:00Z' } },
       { id: 3, name: 'New pending assignment', points_possible: 20, submission: { score: 0, workflow_state: 'pending_review' } },
     ] }]
-    : [{ id: 1, name: 'PHYS 009', workflow_state: 'available', enrollments: [{ type: 'student', computed_current_score: 90, computed_current_grade: 'A' }] }]);
+    : [{ id: 1, name: 'PHYS 009', workflow_state: 'available', enrollments: [{ type: 'student', computed_current_score: unchanged ? 80 : 90, computed_current_grade: unchanged ? 'B' : 'A' }] }]);
   new Function('createClient', 'webpush', 'Deno', 'isExcludedCourse', 'numericScore', 'submissionScore', 'gradeSnapshots', 'gradeChanged', 'gradeKey', 'notificationFor', 'fetch', stripTypeScriptTypes(source))(
     () => admin, webpush, Deno, isExcludedCourse, numericScore, submissionScore, gradeSnapshots, gradeChanged, gradeKey, notificationFor, fetch,
   );
@@ -76,4 +80,15 @@ test('first background check establishes a baseline without flooding old grades'
   const job = worker({ firstRun: true });
   assert.equal((await (await job.run()).json()).notificationsSent, 0);
   assert.equal(job.tables.grade_notification_runs[0].snapshot_version, 2);
+});
+
+test('unchanged grades remain quiet across repeated database timestamp round trips', async () => {
+  const job = worker({ unchanged: true });
+  for (let check = 0; check < 4; check += 1) {
+    const result = await (await job.run()).json();
+    assert.equal(result.notificationsSent, 0);
+    assert.equal(result.failures.length, 0);
+    assert.equal(result.usersChecked, 1);
+  }
+  assert.ok(!job.actions.includes('push'));
 });

@@ -22,10 +22,12 @@ export function gradeKey(grade) { return `${grade.course_id}-${grade.assignment_
 export function gradeChanged(previous, current) {
   if (numericScore(current.score) === null) return false;
   if (!previous || numericScore(previous.score) === null) return true;
+  // Only grade values trigger alerts. Canvas and PostgREST serialize the same
+  // grading time differently, and re-saving a grade can change its timestamp
+  // without changing the student's result.
   return numericScore(previous.score) !== numericScore(current.score)
     || numericScore(previous.points_possible) !== numericScore(current.points_possible)
-    || (previous.grade !== undefined && (previous.grade || null) !== (current.grade || null))
-    || Boolean(current.graded_at && current.graded_at !== previous.graded_at);
+    || (previous.grade !== undefined && (previous.grade || null) !== (current.grade || null));
 }
 
 export function gradeText(grade) {
