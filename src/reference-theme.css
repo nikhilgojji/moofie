@@ -14,14 +14,14 @@
   --text: #a7a7ab;
   --text-strong: #eeedeb;
   --muted: #89898f;
-  --accent: #e8ac2e;
-  --accent-bright: #f1b83d;
-  --accent-soft: #e8ac2e14;
+  --accent: #78c8bc;
+  --accent-bright: #92d8ce;
+  --accent-soft: rgba(120, 200, 188, 0.12);
   --link: var(--accent);
   --external-link: #78b7ff;
   --content-link: var(--link);
-  --button-contrast-bg: var(--accent);
-  --button-contrast-text: #14110b;
+  --button-contrast-bg: #e8e7e3;
+  --button-contrast-text: #161719;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -41,13 +41,13 @@
   --text: #54545b;
   --text-strong: #242426;
   --muted: #696971;
-  --accent: #89600b;
-  --accent-bright: #795000;
-  --accent-soft: #af7d1212;
+  --accent: #317f77;
+  --accent-bright: #246c65;
+  --accent-soft: rgba(49, 127, 119, 0.1);
   --link: var(--accent);
   --external-link: #0066b3;
-  --button-contrast-bg: #e8ac2e;
-  --button-contrast-text: #14110b;
+  --button-contrast-bg: #34363b;
+  --button-contrast-text: #fbfaf7;
   background: var(--bg);
   color-scheme: light;
 }
@@ -128,7 +128,7 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .course-picker-copy strong { color: var(--text-strong); font-family: var(--font-ui); font-size: 22px; font-weight: 600; letter-spacing: -.015em; overflow-wrap: anywhere; }
 .course-picker-open svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform 180ms ease-out; }
 .assignment-preview-copy > strong { color: var(--text-strong); font-size: 16px; font-weight: 400; line-height: 1.6; }
-/* Course content uses neutral controls; the yellow identity stays in navigation. */
+/* Course content uses neutral controls and the default accent in navigation. */
 .app-frame a[href^="mailto:"],
 .app-frame a[target="_blank"]:not([download]) { color: var(--external-link); }
 
