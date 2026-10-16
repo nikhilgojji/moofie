@@ -22,9 +22,9 @@
   --text: #aaa9af;
   --text-strong: #e6e4df;
   --muted: #777780;
-  --accent: #78c8bc;
-  --accent-bright: #92d8ce;
-  --accent-soft: rgba(120, 200, 188, 0.12);
+  --accent: var(--text);
+  --accent-bright: var(--text-strong);
+  --accent-soft: rgba(167, 167, 171, 0.12);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -36,7 +36,7 @@
   --field-bg: #0f1012;
   --button-contrast-bg: #e8e7e3;
   --button-contrast-text: #161719;
-  --link: #83c9be;
+  --link: var(--accent);
   --content-link: var(--link);
 }
 
@@ -52,9 +52,9 @@
   --text: #55575e;
   --text-strong: #303238;
   --muted: #74767d;
-  --accent: #317f77;
-  --accent-bright: #246c65;
-  --accent-soft: rgba(49, 127, 119, 0.1);
+  --accent: var(--text);
+  --accent-bright: var(--text-strong);
+  --accent-soft: rgba(84, 84, 91, 0.08);
   --warning: #8a6b2d;
   --warning-soft: rgba(138, 107, 45, 0.1);
   --danger: #d83a50;
@@ -62,7 +62,7 @@
   --field-bg: #ffffff;
   --button-contrast-bg: #34363b;
   --button-contrast-text: #fbfaf7;
-  --link: #267e76;
+  --link: var(--accent);
 }
 
 /* Normalize element sizing and establish page-wide typography and interaction behavior. */

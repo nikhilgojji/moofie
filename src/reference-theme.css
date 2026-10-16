@@ -14,9 +14,9 @@
   --text: #a7a7ab;
   --text-strong: #eeedeb;
   --muted: #89898f;
-  --accent: #78c8bc;
-  --accent-bright: #92d8ce;
-  --accent-soft: rgba(120, 200, 188, 0.12);
+  --accent: var(--text);
+  --accent-bright: var(--text-strong);
+  --accent-soft: rgba(167, 167, 171, 0.12);
   --link: var(--accent);
   --external-link: #78b7ff;
   --content-link: var(--link);
@@ -41,9 +41,9 @@
   --text: #54545b;
   --text-strong: #242426;
   --muted: #696971;
-  --accent: #317f77;
-  --accent-bright: #246c65;
-  --accent-soft: rgba(49, 127, 119, 0.1);
+  --accent: var(--text);
+  --accent-bright: var(--text-strong);
+  --accent-soft: rgba(84, 84, 91, 0.08);
   --link: var(--accent);
   --external-link: #0066b3;
   --button-contrast-bg: #34363b;
@@ -128,7 +128,7 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .course-picker-copy strong { color: var(--text-strong); font-family: var(--font-ui); font-size: 22px; font-weight: 600; letter-spacing: -.015em; overflow-wrap: anywhere; }
 .course-picker-open svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform 180ms ease-out; }
 .assignment-preview-copy > strong { color: var(--text-strong); font-size: 16px; font-weight: 400; line-height: 1.6; }
-/* Course content uses neutral controls and the default accent in navigation. */
+/* Course content and navigation share neutral controls and highlights. */
 .app-frame a[href^="mailto:"],
 .app-frame a[target="_blank"]:not([download]) { color: var(--external-link); }
 
